@@ -54,12 +54,20 @@ const adapter = process.env.CF_WORKERS
 		})
 	: undefined;
 
+const isGitHubPagesBuild = process.env.GITHUB_PAGES === "true";
+const githubPagesSite = process.env.GITHUB_PAGES_SITE;
+const githubPagesBase = process.env.GITHUB_PAGES_BASE || "/";
+
 // https://astro.build/config
 export default defineConfig({
-	site: siteConfig.site_url,
+	site: isGitHubPagesBuild && githubPagesSite ? githubPagesSite : siteConfig.site_url,
 
-	base: "/",
+	base: isGitHubPagesBuild ? githubPagesBase : "/",
 	trailingSlash: "always",
+	build: {
+		assetsPrefix:
+			isGitHubPagesBuild && githubPagesSite ? githubPagesSite : undefined,
+	},
 
 	// 字体配置 - 只加载实际使用的字体，跳过未引用的以加快构建
 	fonts: (() => {
@@ -332,4 +340,3 @@ export default defineConfig({
 		},
 	},
 });
-
