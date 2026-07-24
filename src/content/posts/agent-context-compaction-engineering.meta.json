@@ -1,0 +1,7 @@
+{
+  "title": "上下文压缩不是失忆：解读 Grok Build 的 Agent 交接实现",
+  "published": "2026-07-24",
+  "description": "从工程实现解读 Grok Build 如何压缩 Coding Agent 上下文并完成下一轮模型续接。",
+  "tags": ["AI Agent", "上下文工程", "Grok Build"],
+  "category": "AI Agent"
+}
