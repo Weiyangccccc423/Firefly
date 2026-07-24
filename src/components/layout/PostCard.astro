@@ -1,5 +1,4 @@
 ---
-import type { CollectionEntry } from "astro:content";
 import { render } from "astro:content";
 import { Icon } from "astro-icon/components";
 import CoverImage from "@/components/common/CoverImage.astro";
@@ -8,10 +7,11 @@ import PostStats from "@/components/layout/PostStats.astro";
 import { siteConfig } from "@/config";
 import { getApiUrlList, processCoverImageSync } from "@/utils/image-utils";
 import { getFileDirFromPath, getTagUrl } from "@/utils/url-utils";
+import type { PostEntry } from "@/utils/content-utils";
 
 interface Props {
 	class?: string;
-	entry: CollectionEntry<"posts">;
+	entry: PostEntry;
 	title: string;
 	url: string;
 	published: Date;

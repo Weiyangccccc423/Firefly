@@ -4,6 +4,7 @@ import { commentConfig } from "@/config/commentConfig";
 import Key from "@/i18n/i18nKey";
 import { i18n } from "@/i18n/translation";
 import { removeFileExtension } from "@/utils/url-utils";
+import type { PostEntry } from "@/utils/content-utils";
 import Artalk from "./Artalk.astro";
 import Disqus from "./Disqus.astro";
 import Giscus from "./Giscus.astro";
@@ -11,7 +12,7 @@ import Twikoo from "./Twikoo.astro";
 import Waline from "./Waline.astro";
 
 interface Props {
-	post?: CollectionEntry<"posts"> | CollectionEntry<"spec">;
+	post?: PostEntry | CollectionEntry<"spec">;
 	customPath?: string;
 	title?: string;
 }
@@ -24,7 +25,7 @@ const slug = post ? removeFileExtension(post.id) : slugFromPath;
 const path = customPath
 	? customPath
 	: post
-		? post.collection === "posts"
+		? post.collection === "posts" || post.collection === "htmlPosts"
 			? `/posts/${slug}`
 			: `/${slug}`
 		: `/${slug}`;

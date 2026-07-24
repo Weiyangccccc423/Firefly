@@ -1,13 +1,33 @@
 import { type CollectionEntry, getCollection } from "astro:content";
 import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
-import { getCategoryUrl } from "@utils/url-utils";
+import { getCategoryUrl, removeFileExtension } from "@utils/url-utils";
+
+export type PostEntry =
+	| CollectionEntry<"posts">
+	| CollectionEntry<"htmlPosts">;
+export type PostData = PostEntry["data"];
 
 // // Retrieve posts and sort them by publication date
-async function getRawSortedPosts() {
-	const allBlogPosts = await getCollection("posts", ({ data }) => {
-		return import.meta.env.PROD ? data.draft !== true : true;
-	});
+async function getRawSortedPosts(): Promise<PostEntry[]> {
+	const filterPublishedPosts = (data: PostData) =>
+		import.meta.env.PROD ? data.draft !== true : true;
+	const [markdownPosts, htmlPosts] = await Promise.all([
+		getCollection("posts", ({ data }) => filterPublishedPosts(data)),
+		getCollection("htmlPosts", ({ data }) => filterPublishedPosts(data)),
+	]);
+	const allBlogPosts: PostEntry[] = [...markdownPosts, ...htmlPosts];
+	const routeIds = new Map<string, PostEntry>();
+	for (const post of allBlogPosts) {
+		const routeId = removeFileExtension(post.id);
+		const existingPost = routeIds.get(routeId);
+		if (existingPost) {
+			throw new Error(
+				`Duplicate post route "${routeId}" from ${existingPost.filePath} and ${post.filePath}.`,
+			);
+		}
+		routeIds.set(routeId, post);
+	}
 
 	const sorted = allBlogPosts.sort((a, b) => {
 		// 首先按置顶状态排序，置顶文章在前
@@ -38,7 +58,7 @@ export async function getSortedPosts() {
 }
 export type PostForList = {
 	id: string;
-	data: CollectionEntry<"posts">["data"];
+	data: PostData;
 };
 export async function getSortedPostsList(): Promise<PostForList[]> {
 	const sortedFullPosts = await getRawSortedPosts();
@@ -57,9 +77,7 @@ export type Tag = {
 };
 
 export async function getTagList(): Promise<Tag[]> {
-	const allBlogPosts = await getCollection<"posts">("posts", ({ data }) => {
-		return import.meta.env.PROD ? data.draft !== true : true;
-	});
+	const allBlogPosts = await getRawSortedPosts();
 
 	const countMap: { [key: string]: number } = {};
 	allBlogPosts.forEach((post: { data: { tags: string[] } }) => {
@@ -84,9 +102,7 @@ export type Category = {
 };
 
 export async function getCategoryList(): Promise<Category[]> {
-	const allBlogPosts = await getCollection<"posts">("posts", ({ data }) => {
-		return import.meta.env.PROD ? data.draft !== true : true;
-	});
+	const allBlogPosts = await getRawSortedPosts();
 	const count: { [key: string]: number } = {};
 	allBlogPosts.forEach((post: { data: { category: string | null } }) => {
 		if (!post.data.category) {
@@ -157,12 +173,10 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
  * - categoryBonus (0 or 10): 同分类加 10 分
  */
 export async function getRelatedPosts(
-	currentPost: CollectionEntry<"posts">,
+	currentPost: PostEntry,
 	maxCount = 5,
 ): Promise<PostForList[]> {
-	const allPosts = await getCollection<"posts">("posts", ({ data }) => {
-		return import.meta.env.PROD ? data.draft !== true : true;
-	});
+	const allPosts = await getRawSortedPosts();
 
 	// 排除自身和加密文章
 	const candidates = allPosts.filter(

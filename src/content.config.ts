@@ -1,10 +1,10 @@
 import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
+import { htmlPostsLoader } from "./loaders/html-posts";
 
-const postsCollection = defineCollection({
-	loader: glob({ pattern: "**/*.{md,mdx}", base: "./src/content/posts" }),
-	schema: z.object({
+const createPostSchema = (contentType: "markdown" | "html") =>
+	z.object({
 		title: z.string(),
 		published: z.date(),
 		updated: z.date().optional(),
@@ -22,13 +22,23 @@ const postsCollection = defineCollection({
 		comment: z.boolean().optional().default(true),
 		password: z.string().optional().default(""),
 		passwordHint: z.string().optional().default(""),
+		contentType: z.literal(contentType).optional().default(contentType),
 
 		/* For internal use */
 		prevTitle: z.string().default(""),
 		prevSlug: z.string().default(""),
 		nextTitle: z.string().default(""),
 		nextSlug: z.string().default(""),
-	}),
+});
+
+const postsCollection = defineCollection({
+	loader: glob({ pattern: "**/*.{md,mdx}", base: "./src/content/posts" }),
+	schema: createPostSchema("markdown"),
+});
+
+const htmlPostsCollection = defineCollection({
+	loader: htmlPostsLoader,
+	schema: createPostSchema("html"),
 });
 
 const specCollection = defineCollection({
@@ -45,6 +55,7 @@ const dynamicCollection = defineCollection({
 
 export const collections = {
 	dynamic: dynamicCollection,
+	htmlPosts: htmlPostsCollection,
 	posts: postsCollection,
 	spec: specCollection,
 };

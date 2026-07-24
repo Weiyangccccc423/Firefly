@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>HTML 原文文章示例</title>
+    <meta name="description" content="展示 Firefly 对原生 HTML 文章的支持。" />
+    <meta name="published" content="1970-01-04" />
+    <meta name="tags" content="HTML, Firefly, 示例" />
+    <meta name="category" content="文章示例" />
+  </head>
+  <body>
+    <article>
+      <p>这篇文章直接使用 HTML 文件，正文不需要转换为 Markdown。</p>
+
+      <h2>保留常用 HTML 结构</h2>
+      <p>
+        标题、段落、<strong>强调文本</strong>、链接、列表、表格、图片、音视频和代码块会在
+        Firefly 的文章布局中正常显示。
+      </p>
+
+      <blockquote>
+        <p>构建时会移除页面级 head、script 和 style 标签，仅渲染经过安全处理的正文。</p>
+      </blockquote>
+
+      <h2>目录和阅读时间</h2>
+      <p>构建器会自动为 h1 至 h6 生成锚点、文章目录、摘要、字数和阅读时间。</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>能力</th>
+            <th>HTML 文章</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>分类、标签、RSS、搜索</td>
+            <td>支持</td>
+          </tr>
+          <tr>
+            <td>文章密码与评论</td>
+            <td>支持</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>图片路径</h2>
+      <p>建议把旧文章图片放到 public/images，并使用以 /images/ 开头的绝对路径。</p>
+    </article>
+  </body>
+</html>

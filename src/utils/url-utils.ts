@@ -2,11 +2,11 @@ import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
 
 /**
- * 移除文件扩展名（.md, .mdx, .markdown）
+ * 移除文章文件扩展名（.md, .mdx, .markdown, .html）
  * 用于将 Astro v5 Content Layer API 的 id 转换为 URL 友好的 slug
  */
 export function removeFileExtension(id: string): string {
-	return id.replace(/\.(md|mdx|markdown)$/i, "");
+	return id.replace(/\.(md|mdx|markdown|html)$/i, "");
 }
 
 export function pathsEqual(path1: string, path2: string) {

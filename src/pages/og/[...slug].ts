@@ -1,9 +1,8 @@
-import type { CollectionEntry } from "astro:content";
-import { getCollection } from "astro:content";
 import * as fs from "node:fs";
 import type { APIContext, GetStaticPaths } from "astro";
 import satori from "satori";
 import { removeFileExtension } from "@/utils/url-utils";
+import { getSortedPosts, type PostEntry } from "@/utils/content-utils";
 
 import { profileConfig } from "../../config/profileConfig";
 import { siteConfig } from "../../config/siteConfig";
@@ -25,8 +24,7 @@ export const getStaticPaths: GetStaticPaths = async () => {
 		return [];
 	}
 
-	const allPosts = await getCollection("posts");
-	const publishedPosts = allPosts.filter((post) => !post.data.draft);
+	const publishedPosts = (await getSortedPosts()).filter((post) => !post.data.draft);
 
 	return publishedPosts.map((post) => {
 		// 将 id 转换为 slug（移除扩展名）以匹配路由参数
@@ -173,7 +171,7 @@ async function imageToPngBase64(
 
 export async function GET({
 	props,
-}: APIContext<{ post: CollectionEntry<"posts"> }>) {
+}: APIContext<{ post: PostEntry }>) {
 	const { post } = props;
 
 	// Try to fetch fonts from Google Fonts (woff2) at runtime.
