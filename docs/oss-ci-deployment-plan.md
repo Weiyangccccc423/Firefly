@@ -55,20 +55,21 @@ OSS Bucket -> 阿里云 CDN -> https://www.example.com
 
 第一版不需要删除对象权限。权限策略中的 Bucket 名称必须替换为实际名称。
 
-需要保存的信息：
+需要在 GitHub 中保存的信息：
 
 ```text
 ALIYUN_ACCESS_KEY_ID
 ALIYUN_ACCESS_KEY_SECRET
 OSS_BUCKET
 OSS_REGION
+OSS_SITE_URL (可选)
 ```
 
-AccessKey 只存入 GitHub 仓库的 `Settings -> Secrets and variables -> Actions`，绝不写入 `.env`、工作流文件或 Git 历史。
+`ALIYUN_ACCESS_KEY_ID` 和 `ALIYUN_ACCESS_KEY_SECRET` 必须存入 GitHub 仓库或 `production` Environment 的 Secrets；绝不写入 `.env`、工作流文件或 Git 历史。`OSS_BUCKET`、`OSS_REGION` 和可选的 `OSS_SITE_URL` 应存入 GitHub Actions Variables，方便在部署摘要中核对目标。
 
 ## 第三阶段：GitHub Actions 工作流实现
 
-计划新建 `.github/workflows/deploy-oss.yml`，触发条件如下：
+已新增 `.github/workflows/deploy-oss.yml`，触发条件如下：
 
 ```yaml
 on:
@@ -77,17 +78,18 @@ on:
   workflow_dispatch:
 ```
 
-工作流步骤：
+工作流已实现以下步骤：
 
-- [ ] 检出提交的精确版本。
-- [ ] 配置 Node.js 22 和 pnpm 9.14.4。
-- [ ] 使用 `pnpm install --frozen-lockfile` 安装依赖。
-- [ ] 执行 `pnpm build`，并确认 `dist/index.html` 存在。
-- [ ] 安装或调用阿里云 `ossutil`。
-- [ ] 从 GitHub Secrets 读取 AccessKey、Bucket 和 Region。
-- [ ] 将 `dist/` 的内容同步到 `oss://<bucket>/` 根目录，使用增量覆盖模式。
-- [ ] 输出本次提交 SHA、Bucket 名称和站点 URL；绝不输出密钥。
-- [ ] 使用并发控制，避免多个推送同时上传导致版本交错。
+- [x] 检出提交的精确版本。
+- [x] 配置 Node.js 22 和 pnpm 9.14.4。
+- [x] 使用 `pnpm install --frozen-lockfile` 安装依赖。
+- [x] 执行 `pnpm build`，并确认 `dist/index.html` 和 `dist/404.html` 存在。
+- [x] 通过官方 `github.com/aliyun/ossutil@v1.7.19` 源码安装 `ossutil`。
+- [x] 从 GitHub Secrets 读取 AccessKey，并从 GitHub Variables 读取 Bucket、Region 和可选站点 URL。
+- [x] 在 `dist/` 目录执行 `ossutil cp . oss://<bucket>/ --recursive --update`，以增量模式把构建产物直接同步到 Bucket 根目录。
+- [x] 输出本次提交 SHA、Bucket、Region 和可选站点 URL；不输出密钥。
+- [x] 使用生产环境和并发控制，避免多个推送同时上传导致版本交错。
+- [x] 在上传前保留 30 天的 `dist/` 构建产物，作为 Git 提交回滚之外的恢复材料。
 
 建议的工作流权限：
 

@@ -1,0 +1,106 @@
+name: Deploy to Alibaba Cloud OSS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oss-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and upload site
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    env:
+      ALIYUN_ACCESS_KEY_ID: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+      ALIYUN_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+      OSS_BUCKET: ${{ vars.OSS_BUCKET }}
+      OSS_REGION: ${{ vars.OSS_REGION }}
+      OSS_SITE_URL: ${{ vars.OSS_SITE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.14.4
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Verify build output
+        run: |
+          test -f dist/index.html
+          test -f dist/404.html
+
+      - name: Retain deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oss-site-${{ github.sha }}
+          path: dist
+          retention-days: 30
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.0"
+
+      - name: Install OSS utility
+        run: |
+          mkdir -p "$RUNNER_TEMP/ossutil-bin"
+          GOBIN="$RUNNER_TEMP/ossutil-bin" go install github.com/aliyun/ossutil@v1.7.19
+
+      - name: Validate deployment configuration
+        run: |
+          test -n "$ALIYUN_ACCESS_KEY_ID"
+          test -n "$ALIYUN_ACCESS_KEY_SECRET"
+          test -n "$OSS_BUCKET"
+          test -n "$OSS_REGION"
+
+      - name: Configure OSS utility
+        run: |
+          "$RUNNER_TEMP/ossutil-bin/ossutil" config \
+            --config-file "$RUNNER_TEMP/ossutilconfig" \
+            --endpoint "oss-${OSS_REGION}.aliyuncs.com" \
+            --access-key-id "$ALIYUN_ACCESS_KEY_ID" \
+            --access-key-secret "$ALIYUN_ACCESS_KEY_SECRET" \
+            --language EN
+
+      - name: Synchronize site to OSS
+        working-directory: dist
+        run: |
+          "$RUNNER_TEMP/ossutil-bin/ossutil" cp . "oss://${OSS_BUCKET}/" \
+            --config-file "$RUNNER_TEMP/ossutilconfig" \
+            --recursive \
+            --update
+
+      - name: Publish deployment summary
+        run: |
+          {
+            echo "### OSS deployment"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Bucket: \`${OSS_BUCKET}\`"
+            echo "- Region: \`${OSS_REGION}\`"
+            if [ -n "$OSS_SITE_URL" ]; then
+              echo "- Site: ${OSS_SITE_URL}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

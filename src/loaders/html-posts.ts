@@ -4,10 +4,8 @@ import { fileURLToPath } from "node:url";
 import type { MarkdownHeading } from "astro";
 import type { Loader } from "astro/loaders";
 import { glob } from "glob";
+import type { DefaultTreeAdapterTypes as HtmlTree } from "parse5";
 import { parse, parseFragment, serialize } from "parse5";
-import type {
-	DefaultTreeAdapterTypes as HtmlTree,
-} from "parse5";
 import sanitizeHtml from "sanitize-html";
 
 type HtmlMetadata = Record<string, unknown>;
@@ -47,6 +45,10 @@ function isElement(node: HtmlNode): node is HtmlElement {
 	return "tagName" in node;
 }
 
+function isTextNode(node: HtmlNode): node is HtmlTree.TextNode {
+	return node.nodeName === "#text";
+}
+
 function getAttribute(node: HtmlElement, name: string): string | undefined {
 	return node.attrs.find((attribute) => attribute.name === name)?.value;
 }
@@ -68,7 +70,10 @@ function visitNodes(node: HtmlNode, callback: (node: HtmlNode) => void) {
 	}
 }
 
-function findFirstElement(node: HtmlNode, tagName: string): HtmlElement | undefined {
+function findFirstElement(
+	node: HtmlNode,
+	tagName: string,
+): HtmlElement | undefined {
 	let result: HtmlElement | undefined;
 	visitNodes(node, (currentNode) => {
 		if (!result && isElement(currentNode) && currentNode.tagName === tagName) {
@@ -79,7 +84,7 @@ function findFirstElement(node: HtmlNode, tagName: string): HtmlElement | undefi
 }
 
 function getTextContent(node: HtmlNode): string {
-	if (node.nodeName === "#text") return node.value;
+	if (isTextNode(node)) return node.value;
 	if (!("childNodes" in node)) return "";
 	return node.childNodes.map((child) => getTextContent(child)).join("");
 }
@@ -103,7 +108,9 @@ function slugifyHeading(value: string): string {
 	return slug || "section";
 }
 
-function createHeadings(fragment: HtmlTree.DocumentFragment): MarkdownHeading[] {
+function createHeadings(
+	fragment: HtmlTree.DocumentFragment,
+): MarkdownHeading[] {
 	const headings: MarkdownHeading[] = [];
 	const slugCounts = new Map<string, number>();
 
@@ -129,7 +136,9 @@ function createHeadings(fragment: HtmlTree.DocumentFragment): MarkdownHeading[] 
 }
 
 function countWords(text: string): number {
-	const words = text.match(/[\p{Script=Han}]|[\p{L}\p{N}]+(?:['-][\p{L}\p{N}]+)*/gu);
+	const words = text.match(
+		/[\p{Script=Han}]|[\p{L}\p{N}]+(?:['-][\p{L}\p{N}]+)*/gu,
+	);
 	return words?.length ?? 0;
 }
 
@@ -154,7 +163,11 @@ function parseStringArray(value: unknown): string[] | undefined {
 	return undefined;
 }
 
-function parseDate(value: unknown, field: string, filePath: string): Date | undefined {
+function parseDate(
+	value: unknown,
+	field: string,
+	filePath: string,
+): Date | undefined {
 	if (value === undefined || value === null || value === "") return undefined;
 	if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
 	if (typeof value !== "string" && typeof value !== "number") {
@@ -163,7 +176,9 @@ function parseDate(value: unknown, field: string, filePath: string): Date | unde
 
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
-		throw new Error(`HTML post ${filePath} has an invalid ${field} date: ${value}`);
+		throw new Error(
+			`HTML post ${filePath} has an invalid ${field} date: ${value}`,
+		);
 	}
 	return date;
 }
@@ -189,7 +204,9 @@ function readHtmlMetadata(document: HtmlTree.Document): HtmlMetadata {
 	return metadata;
 }
 
-async function readSidecarMetadata(htmlFilePath: string): Promise<HtmlMetadata> {
+async function readSidecarMetadata(
+	htmlFilePath: string,
+): Promise<HtmlMetadata> {
 	const metadataFilePath = htmlFilePath.replace(/\.html$/i, METADATA_SUFFIX);
 	try {
 		const contents = await readFile(metadataFilePath, "utf-8");
@@ -238,8 +255,14 @@ function buildPostData({
 	filePath: string;
 }): HtmlMetadata {
 	const title =
-		getString(getMetadataValue(sidecar, documentMetadata, "title", "og:title")) ??
-		filePath.replace(/\.html$/i, "").split("/").at(-1)?.replace(/[-_]/g, " ") ??
+		getString(
+			getMetadataValue(sidecar, documentMetadata, "title", "og:title"),
+		) ??
+		filePath
+			.replace(/\.html$/i, "")
+			.split("/")
+			.at(-1)
+			?.replace(/[-_]/g, " ") ??
 		"Untitled HTML post";
 	const published = parseDate(
 		getMetadataValue(
@@ -261,12 +284,26 @@ function buildPostData({
 
 	const description =
 		getString(
-			getMetadataValue(sidecar, documentMetadata, "description", "og:description"),
+			getMetadataValue(
+				sidecar,
+				documentMetadata,
+				"description",
+				"og:description",
+			),
 		) ?? truncate(bodyText, 180);
-	const tags = parseStringArray(getMetadataValue(sidecar, documentMetadata, "tags"));
-	const category = getString(getMetadataValue(sidecar, documentMetadata, "category"));
+	const tags = parseStringArray(
+		getMetadataValue(sidecar, documentMetadata, "tags"),
+	);
+	const category = getString(
+		getMetadataValue(sidecar, documentMetadata, "category"),
+	);
 	const updated = parseDate(
-		getMetadataValue(sidecar, documentMetadata, "updated", "article:modified_time"),
+		getMetadataValue(
+			sidecar,
+			documentMetadata,
+			"updated",
+			"article:modified_time",
+		),
 		"updated",
 		filePath,
 	);
@@ -281,7 +318,9 @@ function buildPostData({
 		category,
 		draft: parseBoolean(getMetadataValue(sidecar, documentMetadata, "draft")),
 		pinned: parseBoolean(getMetadataValue(sidecar, documentMetadata, "pinned")),
-		comment: parseBoolean(getMetadataValue(sidecar, documentMetadata, "comment")),
+		comment: parseBoolean(
+			getMetadataValue(sidecar, documentMetadata, "comment"),
+		),
 		contentType: "html",
 	};
 }
@@ -293,7 +332,16 @@ function sanitizePostHtml(html: string): string {
 			"*": ["aria-*", "class", "data-*", "id", "role", "style", "title"],
 			a: ["href", "name", "rel", "target"],
 			audio: ["autoplay", "controls", "loop", "muted", "preload", "src"],
-			img: ["alt", "decoding", "height", "loading", "sizes", "src", "srcset", "width"],
+			img: [
+				"alt",
+				"decoding",
+				"height",
+				"loading",
+				"sizes",
+				"src",
+				"srcset",
+				"width",
+			],
 			li: ["value"],
 			ol: ["reversed", "start", "type"],
 			source: ["media", "sizes", "src", "srcset", "type"],
@@ -321,7 +369,9 @@ function sanitizePostHtml(html: string): string {
 }
 
 async function loadHtmlPosts(context: Parameters<Loader["load"]>[0]) {
-	const postsDirectory = fileURLToPath(new URL("content/posts/", context.config.srcDir));
+	const postsDirectory = fileURLToPath(
+		new URL("content/posts/", context.config.srcDir),
+	);
 	const projectRoot = fileURLToPath(context.config.root);
 	const files = await glob(HTML_POST_PATTERN, {
 		cwd: postsDirectory,
@@ -331,7 +381,10 @@ async function loadHtmlPosts(context: Parameters<Loader["load"]>[0]) {
 	context.store.clear();
 
 	for (const relativeFilePath of files) {
-		const absoluteFilePath = new URL(relativeFilePath, new URL("file://" + postsDirectory + "/"));
+		const absoluteFilePath = new URL(
+			relativeFilePath,
+			new URL(`file://${postsDirectory}/`),
+		);
 		const htmlFilePath = fileURLToPath(absoluteFilePath);
 		const sourceHtml = await readFile(htmlFilePath, "utf-8");
 		const document = parse(sourceHtml);
@@ -356,7 +409,10 @@ async function loadHtmlPosts(context: Parameters<Loader["load"]>[0]) {
 			filePath: htmlFilePath,
 		});
 		const words = countWords(bodyText);
-		const minutes = words === 0 ? 0 : Math.max(1, Math.ceil(words / READING_WORDS_PER_MINUTE));
+		const minutes =
+			words === 0
+				? 0
+				: Math.max(1, Math.ceil(words / READING_WORDS_PER_MINUTE));
 		const metadataFilePath = htmlFilePath.replace(/\.html$/i, METADATA_SUFFIX);
 		let metadataContents = "";
 		try {
@@ -392,7 +448,9 @@ export const htmlPostsLoader: Loader = {
 		await loadHtmlPosts(context);
 
 		if (!context.watcher) return;
-		const postsDirectory = fileURLToPath(new URL("content/posts/", context.config.srcDir));
+		const postsDirectory = fileURLToPath(
+			new URL("content/posts/", context.config.srcDir),
+		);
 		context.watcher.add(postsDirectory);
 		const shouldReload = (filePath: string) =>
 			filePath.startsWith(postsDirectory) &&

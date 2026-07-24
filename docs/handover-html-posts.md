@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-已完成 HTML 原文文章支持的第一轮源码改造，并加入说明和示例；尚未完成 Astro 类型检查或生产构建验证。
+HTML 原文文章支持已完成源码改造、说明、示例与构建验证。`pnpm astro sync`、`pnpm check` 和 `pnpm build` 均已通过；生产构建已生成 HTML 示例文章、RSS 条目与 Pagefind 索引。
 
-本次工作还包含此前创建的 OSS CI 部署执行计划，见 `docs/oss-ci-deployment-plan.md`。该计划尚未实现为 GitHub Actions 工作流。
+本次工作还完成了 OSS CI 部署工作流，见 `.github/workflows/deploy-oss.yml` 和 `docs/oss-ci-deployment-plan.md`。实际部署前仍需在 GitHub 配置 OSS Secrets、Variables 与 `production` Environment。
 
 ## 已完成改动
 
@@ -34,18 +34,21 @@
   - `src/content/posts/html-original-example.html`
   - `src/content/posts/html-original-example.meta.json`
 - 新增使用说明：`docs/html-posts.md`。
+- 修复 `parse5` 文本节点的严格类型缩窄，确保正文、摘要和字数提取可通过 Astro 诊断。
+- 新增 OSS GitHub Actions 工作流：在 `master` 推送或手动触发时构建、保留构建产物并以增量方式同步到 OSS。
 
 ## 本地验证步骤
 
-在本地仓库根目录执行：
+已在本地仓库根目录执行：
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm astro sync
 pnpm check
-pnpm type-check
 pnpm build
 ```
+
+`pnpm type-check` 仍因仓库既有的 `--isolatedDeclarations` 标注缺失而失败，涉及 `src/constants/constants.ts`、多个既有 API 路由与工具模块；HTML 加载器本身不再有诊断错误。该问题不影响 Astro 诊断或生产构建。
 
 然后用以下命令检查渲染：
 
@@ -60,25 +63,17 @@ pnpm dev
 - `/rss.xml`
 - 标签、分类和归档页
 
+## 已验证的重点
+
+- 自定义加载器返回的 `rendered.html` 能被 Astro `render()` 用于文章页、文章卡片和 RSS。
+- `CollectionEntry<"posts"> | CollectionEntry<"htmlPosts">` 可被文章页面、列表、评论、RSS 和 OG 图调用点正确消费。
+- `parse5` 类型与 `sanitize-html` 选项通过 `pnpm check`，并且完整构建成功。
+- Pagefind 索引已生成，HTML 示例文章包含在构建产物中。
+- 开发模式下修改 HTML 文件会触发加载器重新读取文章，示例文章随后可正常响应。
+
 ## 尚未验证的重点
 
-- 自定义加载器返回的 `rendered.html` 能否被 Astro 的 `render()` 在文章页、卡片和 RSS 中正确渲染。
-- `CollectionEntry<"posts"> | CollectionEntry<"htmlPosts">` 在 Astro 生成类型后的所有组件类型是否完全兼容。
-- 自定义加载器的开发模式 watcher 是否在添加、修改、删除 HTML 文章或元数据文件时正确刷新。
-- `parse5` 的类型、`sanitize-html` 选项和 Biome 格式是否满足项目检查。
-- 完整构建是否能生成 Pagefind 索引，并正确收录 HTML 文章。
-
-## 当前服务器的验证阻塞
-
-服务器带宽压力较大，已按要求停止验证。
-
-此前 `pnpm astro sync` 未能完成，原因不是项目代码，而是受限环境无法创建 `/root/.config` 下的 Astro/Wrangler 日志和遥测目录。可在本地直接运行；若仍在受限环境执行，可临时指定：
-
-```bash
-XDG_CONFIG_HOME=/tmp/firefly-xdg-config pnpm astro sync
-```
-
-该命令随后被中断，未得到源码诊断结果。
+- 通过浏览器验证真实旧 HTML 文章的图片、嵌入内容和移动端样式迁移。
 
 ## HTML 文章作者约定
 
@@ -90,7 +85,6 @@ XDG_CONFIG_HOME=/tmp/firefly-xdg-config pnpm astro sync
 
 ## 建议的后续处理顺序
 
-1. 在本地运行上述四个验证命令，先修复类型或构建错误。
-2. 使用浏览器验证示例文章的目录、表格、元数据、RSS 和搜索。
-3. 选取一篇真实旧 HTML 文章试迁移，确认图片和嵌入内容策略。
-4. 确认 HTML 文章功能稳定后，再实现 `docs/oss-ci-deployment-plan.md` 中的 OSS GitHub Actions 工作流。
+1. 使用浏览器验证示例文章的目录、表格、元数据、RSS 和搜索。
+2. 选取一篇真实旧 HTML 文章试迁移，确认图片和嵌入内容策略。
+3. 在 GitHub 配置 `production` Environment、OSS Secrets 和 Variables 后，手动触发 OSS 工作流完成首次上传验证。
