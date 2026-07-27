@@ -41,7 +41,6 @@ const getDynamicNavBarConfig = (): NavBarConfig => {
 			LinkPresets.Dynamic,
 			LinkPresets.Gallery,
 			LinkPresets.Guestbook,
-			LinkPresets.Bangumi,
 			LinkPresets.Anime,
 		],
 	});
