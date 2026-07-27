@@ -1,3 +1,10 @@
+// 相册照片配置。缩略图用于列表渲染，src 用于点击后的完整查看。
+export type GalleryPhoto = {
+	src: string;
+	thumbnail?: string;
+	alt?: string;
+};
+
 // 相册元信息（用户在配置文件中填写）
 export type GalleryAlbum = {
 	id: string; // URL slug + 目录名，如 "japan-2025"
@@ -7,6 +14,7 @@ export type GalleryAlbum = {
 	location?: string; // 拍摄地点
 	tags?: string[]; // 标签（用于首页筛选）
 	cover?: string; // 手动指定封面（可选，省略则自动取 cover.* 或第一张）
+	photos?: GalleryPhoto[]; // 手动指定照片，适用于缩略图和查看图不同的场景
 	password?: string; // 加密密码（非空时启用加密）
 	passwordHint?: string; // 密码提示
 };

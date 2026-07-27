@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { GalleryAlbum } from "@/types/config";
+import type { GalleryAlbum, GalleryPhoto } from "@/types/config";
 import { url } from "@/utils/url-utils";
 
 function withBase(assetPath: string): string {
@@ -21,8 +21,16 @@ function withBase(assetPath: string): string {
 /**
  * 扫描相册目录中的所有图片文件
  */
-export function scanAlbumPhotos(albumId: string): string[] {
-	const dir = path.join(process.cwd(), "public", "gallery", albumId);
+export function scanAlbumPhotos(album: GalleryAlbum): GalleryPhoto[] {
+	if (album.photos?.length) {
+		return album.photos.map((photo) => ({
+			src: withBase(photo.src),
+			thumbnail: photo.thumbnail ? withBase(photo.thumbnail) : undefined,
+			alt: photo.alt,
+		}));
+	}
+
+	const dir = path.join(process.cwd(), "public", "gallery", album.id);
 	if (!fs.existsSync(dir)) return [];
 	const files = fs
 		.readdirSync(dir)
@@ -34,7 +42,7 @@ export function scanAlbumPhotos(albumId: string): string[] {
 		const [coverFile] = files.splice(coverIdx, 1);
 		files.unshift(coverFile);
 	}
-	const localPhotos = files.map((f) => withBase(`/gallery/${albumId}/${f}`));
+	const localPhotos = files.map((f) => withBase(`/gallery/${album.id}/${f}`));
 
 	// 读取 urls.txt 中的远程图片 URL
 	const urlsFile = path.join(dir, "urls.txt");
@@ -47,15 +55,24 @@ export function scanAlbumPhotos(albumId: string): string[] {
 			.filter((line) => line && !line.startsWith("#"));
 	}
 
-	return [...localPhotos, ...remotePhotos];
+	return [...localPhotos, ...remotePhotos].map((src) => ({ src }));
 }
 
 /**
  * 获取相册封面图
  * 优先级：手动指定 > cover.* 文件 > 第一张图片
  */
-export function getAlbumCover(album: GalleryAlbum, photos: string[]): string {
+export function getAlbumCover(
+	album: GalleryAlbum,
+	photos: GalleryPhoto[],
+): string {
 	if (album.cover) return withBase(album.cover);
-	const coverFile = photos.find((p) => /\/cover\./i.test(p));
-	return coverFile || photos[0] || "";
+	const coverFile = photos.find((photo) => /\/cover\./i.test(photo.src));
+	return (
+		coverFile?.thumbnail ||
+		coverFile?.src ||
+		photos[0]?.thumbnail ||
+		photos[0]?.src ||
+		""
+	);
 }
