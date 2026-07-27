@@ -11,7 +11,7 @@ export const galleryConfig: GalleryConfig = {
 			cover: "/gallery/china-high-speed-rail/preview.webp",
 			photos: [
 				{
-					src: "/gallery/china-high-speed-rail/map.webp",
+					src: "/gallery/china-high-speed-rail/source/china-high-speed-rail-2025-11.png",
 					thumbnail: "/gallery/china-high-speed-rail/preview.webp",
 					alt: "中国高速铁路线路示意图（2025 年 11 月）",
 				},
