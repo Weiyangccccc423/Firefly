@@ -3,6 +3,7 @@ export type GalleryPhoto = {
 	src: string;
 	thumbnail?: string;
 	alt?: string;
+	deepZoom?: string;
 };
 
 // 相册元信息（用户在配置文件中填写）

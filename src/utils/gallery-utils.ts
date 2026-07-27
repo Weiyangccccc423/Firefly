@@ -27,6 +27,7 @@ export function scanAlbumPhotos(album: GalleryAlbum): GalleryPhoto[] {
 			src: withBase(photo.src),
 			thumbnail: photo.thumbnail ? withBase(photo.thumbnail) : undefined,
 			alt: photo.alt,
+			deepZoom: photo.deepZoom ? withBase(photo.deepZoom) : undefined,
 		}));
 	}
 

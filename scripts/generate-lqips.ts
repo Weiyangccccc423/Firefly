@@ -14,6 +14,8 @@ const IGNORE_DIRS = [
 	"public/pio/**",
 	"public/assets/images/effects/**",
 	"public/assets/music/**",
+	"public/gallery/**/source/**",
+	"public/gallery/**/tiles/**",
 ];
 
 interface RgbColor {

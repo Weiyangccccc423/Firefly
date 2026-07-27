@@ -6,9 +6,10 @@ interface Props {
 	thumbnail?: string;
 	albumId: string;
 	alt?: string;
+	deepZoom?: string;
 }
 
-const { src, thumbnail, albumId, alt = "" } = Astro.props;
+const { src, thumbnail, albumId, alt = "", deepZoom } = Astro.props;
 const displaySrc = thumbnail || src;
 
 // LQIP 渐变占位
@@ -16,11 +17,14 @@ const lqipProps = getLqipProps(displaySrc, undefined, true);
 ---
 
 <div class="gallery-photo-card break-inside-avoid mb-3">
-  <div
-    data-fancybox={`gallery-${albumId}`}
-    data-src={src}
-    data-type="image"
-    class="block rounded-xl overflow-hidden relative group cursor-pointer"
+  <button
+    type="button"
+    data-fancybox={deepZoom ? undefined : `gallery-${albumId}`}
+    data-src={deepZoom ? undefined : src}
+    data-type={deepZoom ? undefined : "image"}
+    data-deep-zoom-source={deepZoom}
+    data-deep-zoom-title={alt}
+    class="block w-full rounded-xl overflow-hidden relative group cursor-pointer text-left"
   >
     <div class="lqip-placeholder absolute inset-0 pointer-events-none" style={lqipProps.style} aria-hidden="true"></div>
     <img
@@ -30,5 +34,5 @@ const lqipProps = getLqipProps(displaySrc, undefined, true);
       decoding="async"
       class="w-full h-auto object-cover opacity-0 transition-all duration-500 ease-out group-hover:scale-105"
     />
-  </div>
+  </button>
 </div>

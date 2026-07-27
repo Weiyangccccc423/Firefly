@@ -1,0 +1,174 @@
+---
+import { Icon } from "astro-icon/components";
+---
+
+<dialog id="deep-zoom-viewer" aria-labelledby="deep-zoom-title">
+  <div class="deep-zoom-shell">
+    <div class="deep-zoom-header">
+      <h2 id="deep-zoom-title">高清地图</h2>
+      <button type="button" data-deep-zoom-close aria-label="关闭地图" title="关闭地图">
+        <Icon is:inline name="material-symbols:close" />
+      </button>
+    </div>
+    <div id="deep-zoom-canvas" aria-label="可缩放地图"></div>
+    <p id="deep-zoom-error" hidden role="alert">无法加载地图，请稍后重试。</p>
+  </div>
+</dialog>
+
+<script>
+  import OpenSeadragon from "openseadragon";
+
+  type DeepZoomWindow = Window & {
+    __fireflyDeepZoomCleanup?: () => void;
+  };
+
+  const win = window as DeepZoomWindow;
+  win.__fireflyDeepZoomCleanup?.();
+
+  const dialog = document.getElementById("deep-zoom-viewer") as HTMLDialogElement | null;
+  const canvas = document.getElementById("deep-zoom-canvas");
+  const title = document.getElementById("deep-zoom-title");
+  const error = document.getElementById("deep-zoom-error");
+  const closeButton = dialog?.querySelector<HTMLButtonElement>("[data-deep-zoom-close]");
+  let viewer: OpenSeadragon.Viewer | undefined;
+
+  function openViewer(source: string, label: string) {
+    if (!dialog || !canvas) return;
+    if (title) title.textContent = label || "高清地图";
+    if (error) error.hidden = true;
+    if (!dialog.open) dialog.showModal();
+
+    if (!viewer) {
+      viewer = OpenSeadragon({
+        element: canvas,
+        tileSources: source,
+        showNavigationControl: false,
+        showNavigator: true,
+        navigatorPosition: "BOTTOM_RIGHT",
+        animationTime: 0.25,
+        zoomPerScroll: 1.4,
+        maxZoomPixelRatio: 2,
+        gestureSettingsTouch: {
+          pinchToZoom: true,
+          flickEnabled: true,
+        },
+      });
+      viewer.addHandler("open-failed", () => {
+        if (error) error.hidden = false;
+      });
+      return;
+    }
+
+    viewer.open({ tileSource: source });
+  }
+
+  function onClick(event: MouseEvent) {
+    const target = (event.target as Element | null)?.closest<HTMLElement>("[data-deep-zoom-source]");
+    const source = target?.dataset.deepZoomSource;
+    if (!source) return;
+    event.preventDefault();
+    openViewer(source, target?.dataset.deepZoomTitle || "高清地图");
+  }
+
+  function closeViewer() {
+    if (dialog?.open) dialog.close();
+    viewer?.close();
+  }
+
+  function cleanup() {
+    document.removeEventListener("click", onClick);
+    closeButton?.removeEventListener("click", closeViewer);
+    dialog?.removeEventListener("cancel", closeViewer);
+    viewer?.destroy();
+    viewer = undefined;
+    if (win.__fireflyDeepZoomCleanup === cleanup) {
+      delete win.__fireflyDeepZoomCleanup;
+    }
+  }
+
+  document.addEventListener("click", onClick);
+  closeButton?.addEventListener("click", closeViewer);
+  dialog?.addEventListener("cancel", closeViewer);
+  document.addEventListener("swup:visit:start", cleanup, { once: true });
+  win.__fireflyDeepZoomCleanup = cleanup;
+</script>
+
+<style>
+  #deep-zoom-viewer {
+    width: min(96vw, 1440px);
+    height: min(92vh, 960px);
+    padding: 0;
+    border: 1px solid var(--line-divider);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+  }
+
+  #deep-zoom-viewer::backdrop {
+    background: rgb(0 0 0 / 72%);
+  }
+
+  .deep-zoom-shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
+  }
+
+  .deep-zoom-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 48px;
+    padding: 0 10px 0 16px;
+    border-bottom: 1px solid var(--line-divider);
+  }
+
+  .deep-zoom-header h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .deep-zoom-header button {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .deep-zoom-header button:hover {
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  }
+
+  #deep-zoom-canvas {
+    min-height: 0;
+    background: #151515;
+  }
+
+  #deep-zoom-error {
+    position: absolute;
+    inset: auto 16px 16px;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: rgb(0 0 0 / 72%);
+    color: white;
+    font-size: 0.875rem;
+  }
+
+  @media (max-width: 640px) {
+    #deep-zoom-viewer {
+      width: 100vw;
+      height: 100dvh;
+      max-width: none;
+      max-height: none;
+      border: 0;
+      border-radius: 0;
+    }
+  }
+</style>
