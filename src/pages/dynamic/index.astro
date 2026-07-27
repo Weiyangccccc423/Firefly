@@ -7,6 +7,7 @@ import I18nKey from "@/i18n/i18nKey";
 import { i18n } from "@/i18n/translation";
 import MainGridLayout from "@/layouts/MainGridLayout.astro";
 import "@/styles/dynamic.css";
+import { filterExistingDynamics } from "@/utils/dynamic-utils";
 import { getCollection } from "astro:content";
 import { url } from "@/utils/url-utils";
 
@@ -24,7 +25,9 @@ const showInlineComments = Boolean(
 		commentConfig.type !== "none",
 );
 const dataUrl = url("/api/dynamic.json");
-const dynamicCount = (await getCollection("dynamic")).length;
+const dynamicCount = filterExistingDynamics(
+	await getCollection("dynamic"),
+).length;
 ---
 
 <MainGridLayout title={title} description={description}>

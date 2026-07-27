@@ -1,4 +1,15 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { CollectionEntry } from "astro:content";
+
+export const filterExistingDynamics = (
+	entries: CollectionEntry<"dynamic">[],
+): CollectionEntry<"dynamic">[] =>
+	// Astro's persisted content store can retain deleted entries during an
+	// incremental build. Only publish entries backed by a current source file.
+	entries.filter(
+		(entry) => !!entry.filePath && existsSync(resolve(entry.filePath)),
+	);
 
 export const sortDynamics = (
 	entries: CollectionEntry<"dynamic">[],

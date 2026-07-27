@@ -10,6 +10,7 @@ import { formatDynamicDate } from "@/utils/date-utils";
 import {
 	dynamicAnchor,
 	dynamicPlainText,
+	filterExistingDynamics,
 	sortDynamics,
 } from "@/utils/dynamic-utils";
 import { url } from "@/utils/url-utils";
@@ -27,7 +28,7 @@ const limit = Math.max(1, Math.floor(configuredLimit));
 const imagePattern = /!\[([^\]]*)\]\((\S+?)(?:\s+["'][^"']*["'])?\)/;
 
 const dynamics = siteConfig.pages.dynamic
-	? sortDynamics(await getCollection("dynamic"))
+	? sortDynamics(filterExistingDynamics(await getCollection("dynamic")))
 			.slice(0, limit)
 			.map((entry) => {
 				const image = (entry.body || "").match(imagePattern);

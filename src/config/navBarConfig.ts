@@ -33,6 +33,21 @@ const getDynamicNavBarConfig = (): NavBarConfig => {
 		],
 	});
 
+	links.push({
+		name: "更多",
+		url: "#",
+		icon: "material-symbols:apps",
+		children: [
+			LinkPresets.Dynamic,
+			LinkPresets.Gallery,
+			LinkPresets.Guestbook,
+			LinkPresets.Bangumi,
+			LinkPresets.Anime,
+		],
+	});
+
+	links.push(LinkPresets.About);
+
 	return { links } as NavBarConfig;
 };
 
