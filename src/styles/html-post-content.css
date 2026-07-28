@@ -1,0 +1,468 @@
+.html-post-content {
+	--html-post-surface: color-mix(in oklch, var(--btn-regular-bg) 72%, var(--card-bg));
+	--html-post-border: color-mix(in oklch, var(--line-divider) 72%, var(--primary));
+	--html-post-text: var(--tw-prose-body);
+	color: var(--html-post-text);
+}
+
+.html-post-content .page,
+.html-post-content .deck,
+.html-post-content .layout,
+.html-post-content .article,
+.html-post-content .content {
+	width: 100% !important;
+	max-width: none !important;
+	margin: 0 !important;
+}
+
+/* Legacy pages often reserve a sidebar for their own table of contents. */
+.html-post-content .layout {
+	display: block !important;
+}
+
+.html-post-content .page,
+.html-post-content .deck {
+	padding: 0 !important;
+}
+
+/* The site already renders a title, metadata, table of contents and back-to-top control. */
+.html-post-content .hero,
+.html-post-content .toc,
+.html-post-content .footer,
+.html-post-content .top,
+.html-post-content .controls,
+.html-post-content .progress {
+	display: none !important;
+}
+
+.html-post-content .article {
+	overflow: visible !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+.html-post-content .article > .content {
+	padding: 0 !important;
+}
+
+.html-post-content .deck > .slide {
+	display: block !important;
+	width: auto !important;
+	height: auto !important;
+	min-height: 0 !important;
+	margin: 0 !important;
+	padding: 1.75rem 0 !important;
+	overflow: visible !important;
+	border: 0 !important;
+	border-bottom: 1px dashed var(--line-divider) !important;
+	border-radius: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	text-align: start !important;
+}
+
+.html-post-content .deck > .slide:first-child {
+	padding-top: 0;
+}
+
+.html-post-content .deck > .slide:first-child h1 {
+	display: none !important;
+}
+
+.html-post-content .deck > .slide:last-child {
+	border-bottom: 0;
+}
+
+.html-post-content .topline {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.html-post-content .section-no {
+	flex: 0 0 auto;
+	color: var(--primary);
+	font-size: 0.875rem;
+	font-weight: 700;
+}
+
+.html-post-content .kicker,
+.html-post-content .badge {
+	display: inline-block;
+	margin-bottom: 0.5rem;
+	color: var(--primary);
+	font-size: 0.875rem;
+	font-weight: 700;
+}
+
+.html-post-content .subtitle,
+.html-post-content .lead {
+	color: color-mix(in oklch, var(--html-post-text) 76%, var(--primary));
+	font-size: 1.05em;
+}
+
+.html-post-content .grid,
+.html-post-content .cards,
+.html-post-content .stack {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+	margin: 1rem 0;
+}
+
+.html-post-content .grid.three,
+.html-post-content .cards {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.html-post-content .panel,
+.html-post-content .card,
+.html-post-content .hero-card,
+.html-post-content .wide-node {
+	min-width: 0;
+	padding: 1rem;
+	border: 1px solid var(--html-post-border);
+	border-radius: 0.5rem;
+	background: var(--html-post-surface);
+}
+
+.html-post-content .panel.blue,
+.html-post-content .card.blue,
+.html-post-content .wide-node.blue {
+	border-color: color-mix(in oklch, #2563eb 42%, var(--line-divider));
+}
+
+.html-post-content .panel.green,
+.html-post-content .card.green,
+.html-post-content .wide-node.green {
+	border-color: color-mix(in oklch, #059669 42%, var(--line-divider));
+}
+
+.html-post-content .panel.amber,
+.html-post-content .card.amber,
+.html-post-content .wide-node.amber {
+	border-color: color-mix(in oklch, #d97706 42%, var(--line-divider));
+}
+
+.html-post-content .panel.red,
+.html-post-content .card.red,
+.html-post-content .wide-node.red {
+	border-color: color-mix(in oklch, #dc2626 42%, var(--line-divider));
+}
+
+.html-post-content .panel.violet,
+.html-post-content .card.violet,
+.html-post-content .wide-node.violet {
+	border-color: color-mix(in oklch, #7c3aed 42%, var(--line-divider));
+}
+
+.html-post-content .formula {
+	display: block;
+	margin: 1rem 0;
+	padding: 0.875rem 1rem;
+	overflow-x: auto;
+	border: 1px solid var(--html-post-border);
+	border-radius: 0.5rem;
+	background: var(--html-post-surface);
+	white-space: pre-wrap;
+	text-align: center;
+}
+
+.html-post-content .formula.large {
+	font-size: 1.05em;
+}
+
+.html-post-content .note {
+	padding-left: 0.875rem;
+	border-left: 3px solid var(--primary);
+}
+
+.html-post-content .callout {
+	margin: 1.25rem 0;
+	padding: 1rem;
+	border: 1px solid var(--html-post-border);
+	border-left: 3px solid var(--primary);
+	border-radius: 0.5rem;
+	background: var(--html-post-surface);
+}
+
+.html-post-content .callout.green {
+	border-left-color: #059669;
+}
+
+.html-post-content .callout.orange,
+.html-post-content .callout.amber {
+	border-left-color: #d97706;
+}
+
+.html-post-content .callout.red {
+	border-left-color: #dc2626;
+}
+
+.html-post-content .diagram,
+.html-post-content .svg-panel,
+.html-post-content .demo-panel,
+.html-post-content .table-wrap {
+	max-width: 100%;
+	margin: 1.25rem 0;
+	overflow-x: auto;
+	border: 1px solid var(--html-post-border);
+	border-radius: 0.5rem;
+	background: var(--html-post-surface);
+}
+
+.html-post-content .diagram,
+.html-post-content .svg-panel,
+.html-post-content .demo-panel {
+	padding: 1rem;
+}
+
+.html-post-content .table-wrap > table {
+	margin: 0;
+}
+
+.html-post-content .flow-row,
+.html-post-content .flow-col {
+	display: flex;
+	align-items: stretch;
+	gap: 0.625rem;
+	min-width: 42rem;
+}
+
+.html-post-content .flow-col {
+	flex-direction: column;
+}
+
+.html-post-content .node {
+	flex: 1 0 7.5rem;
+	padding: 0.75rem;
+	border: 1px solid var(--html-post-border);
+	border-radius: 0.5rem;
+	background: var(--card-bg);
+	color: var(--html-post-text);
+	font-weight: 700;
+	text-align: center;
+}
+
+.html-post-content .node small {
+	display: block;
+	margin-top: 0.25rem;
+	font-size: 0.75rem;
+	font-weight: 400;
+}
+
+.html-post-content .node.primary,
+.html-post-content .node.blue {
+	border-color: color-mix(in oklch, #2563eb 45%, var(--line-divider));
+}
+
+.html-post-content .node.green,
+.html-post-content .node.mint {
+	border-color: color-mix(in oklch, #059669 45%, var(--line-divider));
+}
+
+.html-post-content .node.orange,
+.html-post-content .node.amber,
+.html-post-content .node.yellow {
+	border-color: color-mix(in oklch, #d97706 45%, var(--line-divider));
+}
+
+.html-post-content .node.red {
+	border-color: color-mix(in oklch, #dc2626 45%, var(--line-divider));
+}
+
+.html-post-content .node.dark {
+	border-color: color-mix(in oklch, #475569 45%, var(--line-divider));
+}
+
+.html-post-content .arrow {
+	display: grid;
+	flex: 0 0 auto;
+	place-items: center;
+	color: var(--primary);
+	font-size: 1.25rem;
+	font-weight: 700;
+}
+
+.html-post-content .axis {
+	position: relative;
+	min-height: 14rem;
+	padding: 1rem;
+	border: 1px solid var(--html-post-border);
+	border-radius: 0.5rem;
+	background: var(--html-post-surface);
+}
+
+.html-post-content .axis svg {
+	width: 100%;
+	min-width: 20rem;
+	height: auto;
+}
+
+.html-post-content .matrix-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(2.25rem, 1fr));
+	gap: 0.375rem;
+	max-width: 20rem;
+	margin: 1rem auto;
+}
+
+.html-post-content .matrix-grid .cell {
+	padding: 0.5rem;
+	border: 1px solid var(--html-post-border);
+	border-radius: 0.25rem;
+	background: var(--html-post-surface);
+	text-align: center;
+}
+
+.html-post-content .demo-kicker,
+.html-post-content .demo-title {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+
+.html-post-content .demo-kicker span,
+.html-post-content .demo-caption {
+	color: color-mix(in oklch, var(--html-post-text) 68%, var(--primary));
+	font-size: 0.875rem;
+}
+
+.html-post-content .demo-steps {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 0.5rem;
+	min-width: 32rem;
+	margin-top: 1rem;
+}
+
+.html-post-content .demo-step {
+	padding: 0.5rem;
+	border: 1px solid var(--html-post-border);
+	border-radius: 0.375rem;
+	background: var(--card-bg);
+	font-size: 0.875rem;
+	text-align: center;
+}
+
+.html-post-content .svg-panel svg,
+.html-post-content .demo-panel svg,
+.html-post-content .nn-board svg {
+	display: block;
+	width: 100%;
+	min-width: 42rem;
+	height: auto;
+	font-family: inherit;
+}
+
+.html-post-content svg text {
+	fill: var(--html-post-text);
+	font-family: inherit;
+}
+
+.html-post-content .svg-box,
+.html-post-content .concept-chip,
+.html-post-content .mm-word,
+.html-post-content .nn-neuron,
+.html-post-content .nn-loss-box,
+.html-post-content .nn-target-box {
+	fill: var(--card-bg);
+	stroke: var(--html-post-border);
+	stroke-width: 2;
+}
+
+.html-post-content .svg-box.blue,
+.html-post-content .concept-chip.blue {
+	fill: color-mix(in oklch, #2563eb 18%, var(--card-bg));
+}
+
+.html-post-content .svg-box.green,
+.html-post-content .concept-chip.green {
+	fill: color-mix(in oklch, #059669 18%, var(--card-bg));
+}
+
+.html-post-content .svg-box.amber,
+.html-post-content .concept-chip.amber,
+.html-post-content .concept-chip.yellow {
+	fill: color-mix(in oklch, #d97706 18%, var(--card-bg));
+}
+
+.html-post-content .svg-box.red,
+.html-post-content .concept-chip.red,
+.html-post-content .concept-chip.orange {
+	fill: color-mix(in oklch, #dc2626 14%, var(--card-bg));
+}
+
+.html-post-content .svg-box.violet {
+	fill: color-mix(in oklch, #7c3aed 16%, var(--card-bg));
+}
+
+.html-post-content .svg-edge,
+.html-post-content .concept-edge,
+.html-post-content .nn-edge,
+.html-post-content .attn-weight-edge,
+.html-post-content .mm-hot-line,
+.html-post-content .pipe-stage-edge,
+.html-post-content .rnn-long-edge,
+.html-post-content .rnn-memory-edge {
+	fill: none;
+	stroke: var(--primary);
+	stroke-width: 3;
+}
+
+.html-post-content .svg-dot,
+.html-post-content .signal-dot {
+	fill: var(--primary);
+}
+
+@media (min-width: 721px) {
+	.html-post-content .svg-panel svg,
+	.html-post-content .demo-panel svg,
+	.html-post-content .nn-board svg {
+		min-width: 0 !important;
+	}
+}
+
+@media (max-width: 720px) {
+	.html-post-content .grid,
+	.html-post-content .grid.three,
+	.html-post-content .cards,
+	.html-post-content .stack,
+	.html-post-content .demo-steps {
+		grid-template-columns: 1fr;
+		min-width: 0;
+	}
+
+	.html-post-content .topline,
+	.html-post-content .demo-kicker,
+	.html-post-content .demo-title {
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.html-post-content .section-no {
+		display: none;
+	}
+
+	.html-post-content .flow-row,
+	.html-post-content .flow-col,
+	.html-post-content .svg-panel svg,
+	.html-post-content .demo-panel svg,
+	.html-post-content .nn-board svg {
+		min-width: 34rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.html-post-content *,
+	.html-post-content *::before,
+	.html-post-content *::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}

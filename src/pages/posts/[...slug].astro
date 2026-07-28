@@ -30,6 +30,7 @@ import { sponsorConfig } from "@/config/sponsorConfig";
 import { formatDateToYYYYMMDD } from "@/utils/date-utils";
 import { getApiUrlList, processCoverImageSync } from "@/utils/image-utils";
 import { url } from "@/utils/url-utils";
+import "@/styles/html-post-content.css";
 
 export async function getStaticPaths() {
 	const blogEntries = await getSortedPosts();
@@ -45,6 +46,9 @@ export async function getStaticPaths() {
 
 const { entry } = Astro.props;
 const { Content, headings } = await render(entry);
+const postContentClass = `mb-6 markdown-content onload-animation${
+	entry.data.contentType === "html" ? " html-post-content" : ""
+}`;
 
 const { remarkPluginFrontmatter } = await render(entry);
 
@@ -261,7 +265,7 @@ const relatedPosts = await getRelatedPosts(entry, 5);
 
       {entry.data.password ? (
         <EncryptedPost password={entry.data.password} slug={entry.id} hint={entry.data.passwordHint}>
-          <Markdown class="mb-6 markdown-content onload-animation">
+          <Markdown class={postContentClass}>
             <Content />
           </Markdown>
 
@@ -349,7 +353,7 @@ const relatedPosts = await getRelatedPosts(entry, 5);
         </EncryptedPost>
       ) : (
         <>
-          <Markdown class="mb-6 markdown-content onload-animation">
+          <Markdown class={postContentClass}>
             <Content />
           </Markdown>
 
