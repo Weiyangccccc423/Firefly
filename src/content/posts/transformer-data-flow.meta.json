@@ -1,0 +1,7 @@
+{
+  "title": "从 Transformer 到 CLIP 与扩散模型：用数据流读懂文生图",
+  "published": "2026-07-28",
+  "description": "从神经网络训练、RNN 与 Attention 出发，串联 Transformer、CLIP 图文对齐、扩散模型和 LoRA 的完整数据流。",
+  "tags": ["Transformer", "扩散模型", "多模态", "AI 基础"],
+  "category": "AI 基础"
+}
