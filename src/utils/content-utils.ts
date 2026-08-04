@@ -3,20 +3,16 @@ import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
 import { getCategoryUrl, removeFileExtension } from "@utils/url-utils";
 
-export type PostEntry =
-	| CollectionEntry<"posts">
-	| CollectionEntry<"htmlPosts">;
+export type PostEntry = CollectionEntry<"posts">;
 export type PostData = PostEntry["data"];
 
 // // Retrieve posts and sort them by publication date
 async function getRawSortedPosts(): Promise<PostEntry[]> {
 	const filterPublishedPosts = (data: PostData) =>
 		import.meta.env.PROD ? data.draft !== true : true;
-	const [markdownPosts, htmlPosts] = await Promise.all([
-		getCollection("posts", ({ data }) => filterPublishedPosts(data)),
-		getCollection("htmlPosts", ({ data }) => filterPublishedPosts(data)),
-	]);
-	const allBlogPosts: PostEntry[] = [...markdownPosts, ...htmlPosts];
+	const allBlogPosts = await getCollection("posts", ({ data }) =>
+		filterPublishedPosts(data),
+	);
 	const routeIds = new Map<string, PostEntry>();
 	for (const post of allBlogPosts) {
 		const routeId = removeFileExtension(post.id);

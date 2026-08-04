@@ -1,7 +1,0 @@
-{
-  "title": "长期记忆不是聊天记录：解读 Grok Build 的持久化记忆系统",
-  "published": "2026-07-24",
-  "description": "从 Grok Build 源码解读跨会话长期记忆的存储、索引、检索、注入与归并。",
-  "tags": ["AI Agent", "记忆系统", "Grok Build"],
-  "category": "AI Agent"
-}
