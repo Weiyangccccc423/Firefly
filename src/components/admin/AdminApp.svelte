@@ -1,4 +1,5 @@
 <script lang="ts">
+import { marked } from "marked";
 import { onMount } from "svelte";
 
 type Session = { authenticated: boolean; login: string | null };
@@ -25,6 +26,7 @@ type Analytics = {
 	visits?: number;
 	bounces?: number;
 };
+type ViewMode = "edit" | "split" | "preview";
 
 const pageLabels: Record<string, string> = {
 	friends: "友链页面",
@@ -61,6 +63,94 @@ let deployRuns: DeployRun[] = [];
 let busy = false;
 let notice = "";
 let errorMessage = "";
+let viewMode: ViewMode = "edit";
+let previewHtml = "";
+
+const frontmatterPattern = /^---\s*\n[\s\S]*?\n---\s*(?:\n|$)/;
+const blockedPreviewTags =
+	"script,style,iframe,object,embed,form,link,meta,base,svg,math";
+const urlAttributes = new Set(["href", "src", "cite", "action", "formaction"]);
+
+function withoutFrontmatter(value: string) {
+	return value.replace(frontmatterPattern, "").trim();
+}
+
+function isSafePreviewUrl(value: string, attribute: string) {
+	const normalized = value.trim().toLowerCase();
+	if (
+		!normalized ||
+		normalized.startsWith("#") ||
+		normalized.startsWith("/") ||
+		normalized.startsWith("./") ||
+		normalized.startsWith("../")
+	)
+		return true;
+	if (/^(https?:|mailto:|tel:)/.test(normalized)) return true;
+	return attribute === "src" && normalized.startsWith("data:image/");
+}
+
+function escapeHtml(value: string) {
+	return value.replace(
+		/[&<>"']/g,
+		(character) =>
+			({
+				"&": "&amp;",
+				"<": "&lt;",
+				">": "&gt;",
+				'"': "&quot;",
+				"'": "&#39;",
+			})[character] ?? character,
+	);
+}
+
+function sanitizePreview(value: string) {
+	if (typeof DOMParser === "undefined")
+		return `<p>${escapeHtml(value).replace(/\n/g, "<br />")}</p>`;
+
+	const document = new DOMParser().parseFromString(value, "text/html");
+	document.body.querySelectorAll(blockedPreviewTags).forEach((element) => {
+		element.remove();
+	});
+
+	for (const element of Array.from(document.body.querySelectorAll("*"))) {
+		for (const attribute of Array.from(element.attributes)) {
+			const name = attribute.name.toLowerCase();
+			if (
+				name.startsWith("on") ||
+				name === "style" ||
+				name === "srcset" ||
+				name === "srcdoc"
+			) {
+				element.removeAttribute(attribute.name);
+				continue;
+			}
+			if (urlAttributes.has(name) && !isSafePreviewUrl(attribute.value, name))
+				element.removeAttribute(attribute.name);
+		}
+		if (
+			element.tagName === "A" &&
+			element.getAttribute("href")?.startsWith("http")
+		) {
+			element.setAttribute("target", "_blank");
+			element.setAttribute("rel", "noreferrer noopener");
+		}
+	}
+
+	return document.body.innerHTML;
+}
+
+function renderPreview(value: string) {
+	const markdown = withoutFrontmatter(value);
+	if (!markdown) return '<p class="preview-empty">暂无可预览内容。</p>';
+	const html = marked.parse(markdown, {
+		async: false,
+		breaks: true,
+		gfm: true,
+	}) as string;
+	return sanitizePreview(html);
+}
+
+$: previewHtml = renderPreview(editorContent);
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
 	const response = await fetch(`/admin-api${path}`, {
@@ -250,7 +340,7 @@ onMount(loadSession);
 		{#if notice}<div class="notice">{notice}</div>{/if}{#if errorMessage}<div class="error">{errorMessage}</div>{/if}
 
 		{#if activeTab === "posts"}
-			<section class="workspace"><aside class="panel post-list"><div class="panel-heading"><h2>Markdown 文章</h2><button class="small" type="button" on:click={newPost}>新建</button></div>{#if posts.length === 0}<p class="muted">还没有 Markdown 文章。</p>{/if}<div class="post-items">{#each posts as post}<button class="post-item" class:chosen={selectedPath === post.path} type="button" on:click={() => loadPost(post.path)}><strong>{post.title}</strong><span>{post.path.replace("src/content/posts/", "")}</span></button>{/each}</div></aside><section class="panel editor"><div class="panel-heading"><div><h2>{selectedPath ? "编辑文章" : "新建文章"}</h2><p class="muted">保存后会提交到 GitHub 并触发 OSS 构建。</p></div><div class="actions">{#if selectedPath}<button class="danger" type="button" on:click={deletePost} disabled={busy}>删除</button>{/if}<button class="primary" type="button" on:click={savePost} disabled={busy}>保存</button></div></div><label for="post-path">文件路径</label><input id="post-path" class="input" bind:value={editorPath} placeholder="my-article.md" /><label for="post-content">Markdown</label><textarea id="post-content" class="markdown" bind:value={editorContent} spellcheck="false"></textarea></section></section>
+				<section class="workspace"><aside class="panel post-list"><div class="panel-heading"><h2>Markdown 文章</h2><button class="small" type="button" on:click={newPost}>新建</button></div>{#if posts.length === 0}<p class="muted">还没有 Markdown 文章。</p>{/if}<div class="post-items">{#each posts as post}<button class="post-item" class:chosen={selectedPath === post.path} type="button" on:click={() => loadPost(post.path)}><strong>{post.title}</strong><span>{post.path.replace("src/content/posts/", "")}</span></button>{/each}</div></aside><section class="panel editor"><div class="panel-heading"><div><h2>{selectedPath ? "编辑文章" : "新建文章"}</h2><p class="muted">保存后会提交到 GitHub 并触发 OSS 构建。</p></div><div class="actions">{#if selectedPath}<button class="danger" type="button" on:click={deletePost} disabled={busy}>删除</button>{/if}<button class="primary" type="button" on:click={savePost} disabled={busy}>保存</button></div></div><label for="post-path">文件路径</label><input id="post-path" class="input" bind:value={editorPath} placeholder="my-article.md" /><div class="editor-toolbar"><div class="view-switcher" role="tablist" aria-label="文章视图"><button type="button" role="tab" aria-selected={viewMode === "edit"} class:active={viewMode === "edit"} on:click={() => (viewMode = "edit")}>编辑</button><button type="button" role="tab" aria-selected={viewMode === "split"} class:active={viewMode === "split"} on:click={() => (viewMode = "split")}>并排</button><button type="button" role="tab" aria-selected={viewMode === "preview"} class:active={viewMode === "preview"} on:click={() => (viewMode = "preview")}>预览</button></div><span class="preview-status">实时预览</span></div><div class:split={viewMode === "split"} class:preview-only={viewMode === "preview"} class="editor-canvas">{#if viewMode !== "preview"}<div class="editor-pane"><label for="post-content">Markdown</label><textarea id="post-content" class="markdown" bind:value={editorContent} spellcheck="false"></textarea></div>{/if}{#if viewMode !== "edit"}<article class="preview-pane" aria-label="Markdown 预览"><div class="markdown-preview">{@html previewHtml}</div></article>{/if}</div></section></section>
 		{:else if activeTab === "settings"}
 			<section class="panel settings"><div class="panel-heading"><div><h2>站点能力</h2><p class="muted">设置通过 GitHub 提交，下一次构建后生效。</p></div><button class="primary" type="button" on:click={saveSettings} disabled={busy || !adminConfig}>保存设置</button></div>{#if adminConfig}<label class="toggle"><span><strong>音乐播放器</strong><small>控制导航栏音乐入口和音乐功能</small></span><input type="checkbox" bind:checked={adminConfig.music.enabled} /></label><label class="toggle"><span><strong>侧栏</strong><small>控制全局侧栏布局</small></span><input type="checkbox" bind:checked={adminConfig.sidebar.enabled} /></label><h3>页面开关</h3>{#each Object.entries(adminConfig.pages) as [key, enabled]}<label class="toggle"><span><strong>{pageLabels[key] || key}</strong><small>关闭后页面返回 404 并从导航中隐藏</small></span><input type="checkbox" bind:checked={adminConfig.pages[key]} /></label>{/each}{:else}<p class="muted">正在加载设置...</p>{/if}</section>
 		{:else}
@@ -268,8 +358,10 @@ onMount(loadSession);
 	.panel { border: 1px solid #dbe7e3; border-radius: 14px; background: #fff; box-shadow: 0 8px 26px #2049410f; } .workspace { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 16px; } .post-list, .editor, .settings, .metrics { padding: 20px; } .panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
 	.post-items { display: grid; gap: 6px; max-height: 70vh; overflow: auto; } .post-item { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; color: #23413b; cursor: pointer; } .post-item:hover, .post-item.chosen { border-color: #a9d5ca; background: #eff9f5; } .post-item span { overflow: hidden; color: #78918b; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 	.editor label, .input, .markdown { display: block; width: 100%; } .editor label { margin: 12px 0 6px; color: #41655d; font-size: 13px; font-weight: 700; } .input, .markdown { border: 1px solid #cadbd6; border-radius: 9px; background: #fbfdfc; color: #19342f; outline: none; } .input { padding: 11px 12px; } .markdown { min-height: 62vh; padding: 16px; resize: vertical; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.65; } .input:focus, .markdown:focus { border-color: #16866f; box-shadow: 0 0 0 3px #16866f1f; }
+	.editor-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 20px; } .view-switcher { display: inline-flex; padding: 3px; border: 1px solid #cfe0db; border-radius: 9px; background: #f1f7f5; } .view-switcher button { border: 0; border-radius: 6px; padding: 7px 12px; background: transparent; color: #58766e; cursor: pointer; } .view-switcher button:hover { color: #176b5a; } .view-switcher button.active { background: #fff; color: #0d5145; box-shadow: 0 1px 4px #2049411a; font-weight: 700; } .view-switcher button:focus-visible { outline: 2px solid #16866f; outline-offset: 2px; } .preview-status { color: #78918b; font-size: 12px; }
+	.editor-canvas { min-width: 0; } .editor-canvas.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; } .editor-canvas.preview-only { display: block; } .editor-pane, .preview-pane { min-width: 0; } .preview-pane { max-height: 62vh; overflow: auto; border: 1px solid #cadbd6; border-radius: 9px; background: #fff; color: #213c36; } .markdown-preview { padding: 22px 24px; line-height: 1.75; overflow-wrap: anywhere; } .markdown-preview :global(h1), .markdown-preview :global(h2), .markdown-preview :global(h3), .markdown-preview :global(h4) { margin: 0 0 12px; color: #163d35; line-height: 1.3; } .markdown-preview :global(h1) { font-size: 28px; } .markdown-preview :global(h2) { margin-top: 22px; font-size: 23px; } .markdown-preview :global(h3) { margin-top: 18px; font-size: 19px; } .markdown-preview :global(p), .markdown-preview :global(ul), .markdown-preview :global(ol), .markdown-preview :global(blockquote) { margin: 0 0 14px; } .markdown-preview :global(ul), .markdown-preview :global(ol) { padding-left: 24px; } .markdown-preview :global(a) { color: #08745f; text-decoration: underline; text-underline-offset: 2px; } .markdown-preview :global(blockquote) { padding: 10px 16px; border-left: 3px solid #7eb9aa; background: #eff8f5; color: #527069; } .markdown-preview :global(code) { padding: 2px 5px; border-radius: 4px; background: #edf3f1; color: #8a3c55; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .9em; } .markdown-preview :global(pre) { margin: 0 0 16px; padding: 15px 17px; overflow: auto; border-radius: 8px; background: #182c28; color: #e8f5f0; } .markdown-preview :global(pre code) { padding: 0; background: transparent; color: inherit; } .markdown-preview :global(img) { display: block; max-width: 100%; height: auto; margin: 14px 0; border-radius: 8px; } .markdown-preview :global(hr) { margin: 24px 0; border: 0; border-top: 1px solid #dbe7e3; } .markdown-preview :global(table) { display: block; max-width: 100%; margin: 0 0 16px; overflow-x: auto; border-collapse: collapse; } .markdown-preview :global(th), .markdown-preview :global(td) { padding: 8px 10px; border: 1px solid #cfe0db; text-align: left; } .markdown-preview :global(th) { background: #eff8f5; } .preview-empty { color: #78918b; font-style: italic; }
 	.primary, .quiet, .small, .danger { border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; text-decoration: none; white-space: nowrap; } .primary { background: #126f5c; color: #fff; } .primary:hover { background: #0b594a; } .small { background: #e4f2ee; color: #176b5a; } .quiet { background: #edf3f1; color: #466861; } .danger { background: #fbe8e6; color: #a13b31; } button:disabled { cursor: wait; opacity: .55; }
 	.notice, .error { margin: 0 0 16px; padding: 12px 14px; border-radius: 9px; } .notice { background: #e6f6ee; color: #176445; } .error { background: #fff0ee; color: #a13b31; } .toggle { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid #e2ece9; } .toggle strong, .toggle small { display: block; } .toggle small { margin-top: 4px; color: #78918b; } .toggle input { width: 20px; height: 20px; accent-color: #16866f; }
 	.analytics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; } .metric-grid div { padding: 16px 12px; border-radius: 10px; background: #eff9f5; } .metric-grid strong, .metric-grid span { display: block; } .metric-grid strong { font-size: 26px; color: #126f5c; } .metric-grid span { margin-top: 5px; color: #66847c; font-size: 12px; } .runs { display: grid; gap: 8px; } .runs a { display: grid; gap: 4px; padding: 10px; border-radius: 8px; background: #f3f8f6; color: #24594e; text-decoration: none; } .runs span { color: #718b84; font-size: 12px; }
-	@media (max-width: 900px) { .workspace, .analytics-grid { grid-template-columns: 1fr; } .post-items { max-height: 260px; } .markdown { min-height: 55vh; } } @media (max-width: 560px) { .shell { padding: 22px 14px 42px; } .header { display: block; } .header-actions { margin-top: 16px; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .panel-heading { display: block; } .actions { margin-top: 12px; } }
+	@media (max-width: 900px) { .workspace, .analytics-grid { grid-template-columns: 1fr; } .post-items { max-height: 260px; } .markdown { min-height: 55vh; } .editor-canvas.split { grid-template-columns: 1fr; } .preview-pane { max-height: none; } } @media (max-width: 560px) { .shell { padding: 22px 14px 42px; } .header { display: block; } .header-actions { margin-top: 16px; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .panel-heading { display: block; } .actions { margin-top: 12px; } .editor-toolbar { align-items: flex-start; flex-direction: column; } .markdown-preview { padding: 18px; } }
 </style>
