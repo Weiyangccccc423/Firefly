@@ -77,6 +77,7 @@ Preserve the source language, factual claims, Markdown structure, links, code, a
 Do not add frontmatter. Do not wrap the answer in a Markdown code fence. Return only the replacement Markdown.`;
 const UNSAFE_AI_OUTPUT =
 	/<\/?(?:script|iframe|object|embed|form|style|link|meta|base)\b|javascript\s*:|\bon[a-z]+\s*=/i;
+const AI_FRONTMATTER_PATTERN = /^---\s*\n[\s\S]*?\n---\s*(?:\n|$)/;
 const AI_PROMPT_LEAK_MARKERS = [
 	"Firefly blog editing assistant",
 	'JSON field named "markdown"',
@@ -406,6 +407,8 @@ async function rewriteWithAi(payload, login) {
 		throw new HttpError(400, "Unsupported AI editing mode");
 	if (!markdown.trim() || markdown.length > AI_INPUT_LIMIT)
 		throw new HttpError(400, "AI input must contain 1 to 60000 characters");
+	if (AI_FRONTMATTER_PATTERN.test(markdown))
+		throw new HttpError(400, "Frontmatter must be edited separately");
 	if (instruction.length > AI_INSTRUCTION_LIMIT)
 		throw new HttpError(400, "AI instruction is too long");
 	if (mode === "custom" && !instruction)
@@ -478,6 +481,8 @@ async function rewriteWithAi(payload, login) {
 		throw new HttpError(502, "AI provider response is too large");
 	if (UNSAFE_AI_OUTPUT.test(rewritten))
 		throw new HttpError(502, "AI provider returned unsafe HTML");
+	if (AI_FRONTMATTER_PATTERN.test(rewritten))
+		throw new HttpError(502, "AI provider returned frontmatter");
 	if (AI_PROMPT_LEAK_MARKERS.some((marker) => rewritten.includes(marker)))
 		throw new HttpError(502, "AI provider response failed safety validation");
 
