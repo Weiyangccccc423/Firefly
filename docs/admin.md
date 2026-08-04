@@ -37,7 +37,7 @@ AI 只返回 Markdown 建议，不具备 GitHub 写入、部署或服务器工�
 ADMIN_AI_BASE_URL=https://api.openai.com/v1
 ADMIN_AI_API_KEY=...
 ADMIN_AI_MODEL=...
-ADMIN_AI_TIMEOUT_MS=60000
+ADMIN_AI_TIMEOUT_MS=120000
 ```
 
 `ADMIN_AI_BASE_URL` 也可以指向 DeepSeek、通义千问兼容模式或自建模型服务。
@@ -57,7 +57,7 @@ systemctl enable --now firefly-admin-api
 nginx -t && systemctl reload nginx
 ```
 
-AI 请求默认最多等待 60 秒，因此 Nginx 的 `/admin-api/` 反向代理读取超时应至少为 75 秒。
+AI 请求默认最多等待 120 秒，因此 Nginx 的 `/admin-api/` 反向代理读取超时应至少为 150 秒。
 
 ## 功能开关
 

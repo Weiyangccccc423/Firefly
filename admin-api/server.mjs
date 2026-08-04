@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 
-const configuredAiTimeout = Number(process.env.ADMIN_AI_TIMEOUT_MS || 60_000);
+const configuredAiTimeout = Number(process.env.ADMIN_AI_TIMEOUT_MS || 120_000);
 
 const cfg = {
 	port: Number(process.env.ADMIN_PORT || 4322),
@@ -25,7 +25,7 @@ const cfg = {
 	aiModel: process.env.ADMIN_AI_MODEL || "",
 	aiTimeoutMs: Number.isFinite(configuredAiTimeout)
 		? Math.min(Math.max(configuredAiTimeout, 5_000), 120_000)
-		: 60_000,
+		: 120_000,
 };
 
 const SESSION_COOKIE = "firefly_admin_session";
@@ -426,6 +426,7 @@ async function rewriteWithAi(payload, login) {
 		],
 		stream: false,
 	};
+	const startedAt = Date.now();
 	let result;
 	try {
 		result = await fetch(`${cfg.aiBaseUrl}/chat/completions`, {
@@ -439,8 +440,26 @@ async function rewriteWithAi(payload, login) {
 			signal: AbortSignal.timeout(cfg.aiTimeoutMs),
 		});
 	} catch (error) {
-		if (error?.name === "TimeoutError" || error?.name === "AbortError")
+		if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+			console.warn(
+				JSON.stringify({
+					event: "admin_ai_provider_timeout",
+					model: cfg.aiModel,
+					inputLength: markdown.length,
+					elapsedMs: Date.now() - startedAt,
+				}),
+			);
 			throw new HttpError(504, "AI provider request timed out");
+		}
+		console.warn(
+			JSON.stringify({
+				event: "admin_ai_provider_connection_failed",
+				model: cfg.aiModel,
+				inputLength: markdown.length,
+				elapsedMs: Date.now() - startedAt,
+				error: error?.cause?.code || error?.name || "unknown",
+			}),
+		);
 		throw new HttpError(502, "AI provider connection failed");
 	}
 	const data = await result.json().catch(() => ({}));
