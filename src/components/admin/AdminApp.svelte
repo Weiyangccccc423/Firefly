@@ -1,6 +1,6 @@
 <script lang="ts">
 import { marked } from "marked";
-import { onMount } from "svelte";
+import { onMount, tick } from "svelte";
 
 type Session = { authenticated: boolean; login: string | null };
 type PostSummary = { path: string; sha: string; size: number; title: string };
@@ -27,6 +27,9 @@ type Analytics = {
 	bounces?: number;
 };
 type ViewMode = "edit" | "split" | "preview";
+type AiMode = "polish" | "concise" | "expand" | "proofread" | "custom";
+type AiStatus = { configured: boolean; model: string | null };
+type AiRewrite = { result: string; model: string };
 
 const pageLabels: Record<string, string> = {
 	friends: "友链页面",
@@ -65,6 +68,27 @@ let notice = "";
 let errorMessage = "";
 let viewMode: ViewMode = "edit";
 let previewHtml = "";
+let editorTextarea: HTMLTextAreaElement | null = null;
+let aiStatus: AiStatus | null = null;
+let aiPanelOpen = false;
+let aiMode: AiMode = "polish";
+let aiInstruction = "";
+let aiBusy = false;
+let aiResult = "";
+let aiErrorMessage = "";
+let aiScopeLabel = "";
+let aiSourceText = "";
+let aiSourceDocument = "";
+let aiSelectionStart = -1;
+let aiSelectionEnd = -1;
+
+const aiModeLabels: Record<AiMode, string> = {
+	polish: "润色表达",
+	concise: "精简内容",
+	expand: "扩写内容",
+	proofread: "校对纠错",
+	custom: "自定义修改",
+};
 
 const frontmatterPattern = /^---\s*\n[\s\S]*?\n---\s*(?:\n|$)/;
 const blockedPreviewTags =
@@ -152,6 +176,122 @@ function renderPreview(value: string) {
 
 $: previewHtml = renderPreview(editorContent);
 
+function resetAiAssistant() {
+	aiPanelOpen = false;
+	aiMode = "polish";
+	aiInstruction = "";
+	aiResult = "";
+	aiErrorMessage = "";
+	aiScopeLabel = "";
+	aiSourceText = "";
+	aiSourceDocument = "";
+	aiSelectionStart = -1;
+	aiSelectionEnd = -1;
+}
+
+function openAiAssistant() {
+	aiPanelOpen = true;
+	aiResult = "";
+	aiErrorMessage = "";
+	aiSourceDocument = editorContent;
+
+	const selectionStart = editorTextarea?.selectionStart ?? -1;
+	const selectionEnd = editorTextarea?.selectionEnd ?? -1;
+	const selected =
+		selectionStart >= 0 && selectionEnd > selectionStart
+			? editorContent.slice(selectionStart, selectionEnd)
+			: "";
+	if (selected.trim()) {
+		const frontmatterEnd =
+			editorContent.match(frontmatterPattern)?.[0].length || 0;
+		if (selectionStart < frontmatterEnd) {
+			aiSourceText = "";
+			aiScopeLabel = "当前选区";
+			aiErrorMessage = "Frontmatter 不允许交给 AI 修改。";
+			return;
+		}
+		aiSelectionStart = selectionStart;
+		aiSelectionEnd = selectionEnd;
+		aiSourceText = selected;
+		aiScopeLabel = `当前选区 · ${selected.length} 字符`;
+	} else {
+		aiSelectionStart = -1;
+		aiSelectionEnd = -1;
+		aiSourceText = withoutFrontmatter(editorContent);
+		aiScopeLabel = `文章正文 · ${aiSourceText.length} 字符`;
+	}
+
+	if (!aiSourceText.trim()) aiErrorMessage = "当前没有可处理的正文。";
+	else if (!aiStatus?.configured)
+		aiErrorMessage = "AI 文本助手尚未在服务器配置。";
+}
+
+async function loadAiStatus() {
+	try {
+		aiStatus = await api<AiStatus>("/api/ai/status");
+	} catch (error) {
+		aiStatus = { configured: false, model: null };
+		aiErrorMessage = error instanceof Error ? error.message : "AI 状态加载失败";
+	}
+}
+
+async function generateAiRewrite() {
+	if (!aiSourceText.trim()) return;
+	if (editorContent !== aiSourceDocument) {
+		aiErrorMessage = "文章内容已变化，请关闭助手后重新选择文本。";
+		return;
+	}
+	if (aiMode === "custom" && !aiInstruction.trim()) {
+		aiErrorMessage = "请输入具体的修改要求。";
+		return;
+	}
+	aiBusy = true;
+	aiErrorMessage = "";
+	aiResult = "";
+	try {
+		const response = await api<AiRewrite>("/api/ai/rewrite", {
+			method: "POST",
+			body: JSON.stringify({
+				mode: aiMode,
+				instruction: aiInstruction,
+				content: aiSourceText,
+			}),
+		});
+		aiResult = response.result;
+		aiStatus = { configured: true, model: response.model };
+	} catch (error) {
+		aiErrorMessage = error instanceof Error ? error.message : "AI 修改失败";
+	} finally {
+		aiBusy = false;
+	}
+}
+
+async function applyAiResult() {
+	if (!aiResult.trim()) return;
+	if (editorContent !== aiSourceDocument) {
+		aiErrorMessage = "文章在生成期间已发生变化，请重新生成以避免覆盖新内容。";
+		return;
+	}
+
+	const replacement = aiResult.trim();
+	let focusStart = 0;
+	if (aiSelectionStart >= 0 && aiSelectionEnd > aiSelectionStart) {
+		editorContent = `${editorContent.slice(0, aiSelectionStart)}${replacement}${editorContent.slice(aiSelectionEnd)}`;
+		focusStart = aiSelectionStart;
+	} else {
+		const frontmatter = editorContent.match(frontmatterPattern)?.[0] || "";
+		editorContent = `${frontmatter}${replacement}\n`;
+		focusStart = frontmatter.length;
+	}
+	const focusEnd = focusStart + replacement.length;
+	viewMode = "edit";
+	resetAiAssistant();
+	notice = "AI 建议已应用到编辑器，保存前仍可继续修改。";
+	await tick();
+	editorTextarea?.focus();
+	editorTextarea?.setSelectionRange(focusStart, focusEnd);
+}
+
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
 	const response = await fetch(`/admin-api${path}`, {
 		credentials: "include",
@@ -172,7 +312,7 @@ function fail(error: unknown) {
 async function loadSession() {
 	try {
 		session = await api<Session>("/auth/session");
-		if (session.authenticated) await loadPosts();
+		if (session.authenticated) await Promise.all([loadPosts(), loadAiStatus()]);
 	} catch (error) {
 		fail(error);
 	}
@@ -195,6 +335,7 @@ async function loadPost(path: string) {
 		editorPath = data.path.replace(/^src\/content\/posts\//, "");
 		editorContent = data.content;
 		editorSha = data.sha;
+		resetAiAssistant();
 		errorMessage = "";
 	} catch (error) {
 		fail(error);
@@ -208,6 +349,7 @@ function newPost() {
 	editorPath = `new-post-${Date.now()}.md`;
 	editorContent = defaultMarkdown;
 	editorSha = "";
+	resetAiAssistant();
 }
 
 async function savePost() {
@@ -340,7 +482,16 @@ onMount(loadSession);
 		{#if notice}<div class="notice">{notice}</div>{/if}{#if errorMessage}<div class="error">{errorMessage}</div>{/if}
 
 		{#if activeTab === "posts"}
-				<section class="workspace"><aside class="panel post-list"><div class="panel-heading"><h2>Markdown 文章</h2><button class="small" type="button" on:click={newPost}>新建</button></div>{#if posts.length === 0}<p class="muted">还没有 Markdown 文章。</p>{/if}<div class="post-items">{#each posts as post}<button class="post-item" class:chosen={selectedPath === post.path} type="button" on:click={() => loadPost(post.path)}><strong>{post.title}</strong><span>{post.path.replace("src/content/posts/", "")}</span></button>{/each}</div></aside><section class="panel editor"><div class="panel-heading"><div><h2>{selectedPath ? "编辑文章" : "新建文章"}</h2><p class="muted">保存后会提交到 GitHub 并触发 OSS 构建。</p></div><div class="actions">{#if selectedPath}<button class="danger" type="button" on:click={deletePost} disabled={busy}>删除</button>{/if}<button class="primary" type="button" on:click={savePost} disabled={busy}>保存</button></div></div><label for="post-path">文件路径</label><input id="post-path" class="input" bind:value={editorPath} placeholder="my-article.md" /><div class="editor-toolbar"><div class="view-switcher" role="tablist" aria-label="文章视图"><button type="button" role="tab" aria-selected={viewMode === "edit"} class:active={viewMode === "edit"} on:click={() => (viewMode = "edit")}>编辑</button><button type="button" role="tab" aria-selected={viewMode === "split"} class:active={viewMode === "split"} on:click={() => (viewMode = "split")}>并排</button><button type="button" role="tab" aria-selected={viewMode === "preview"} class:active={viewMode === "preview"} on:click={() => (viewMode = "preview")}>预览</button></div><span class="preview-status">实时预览</span></div><div class:split={viewMode === "split"} class:preview-only={viewMode === "preview"} class="editor-canvas">{#if viewMode !== "preview"}<div class="editor-pane"><label for="post-content">Markdown</label><textarea id="post-content" class="markdown" bind:value={editorContent} spellcheck="false"></textarea></div>{/if}{#if viewMode !== "edit"}<article class="preview-pane" aria-label="Markdown 预览"><div class="markdown-preview">{@html previewHtml}</div></article>{/if}</div></section></section>
+			<section class="workspace">
+				<aside class="panel post-list"><div class="panel-heading"><h2>Markdown 文章</h2><button class="small" type="button" on:click={newPost}>新建</button></div>{#if posts.length === 0}<p class="muted">还没有 Markdown 文章。</p>{/if}<div class="post-items">{#each posts as post}<button class="post-item" class:chosen={selectedPath === post.path} type="button" on:click={() => loadPost(post.path)}><strong>{post.title}</strong><span>{post.path.replace("src/content/posts/", "")}</span></button>{/each}</div></aside>
+				<section class="panel editor">
+					<div class="panel-heading"><div><h2>{selectedPath ? "编辑文章" : "新建文章"}</h2><p class="muted">保存后会提交到 GitHub 并触发 OSS 构建。</p></div><div class="actions">{#if selectedPath}<button class="danger" type="button" on:click={deletePost} disabled={busy}>删除</button>{/if}<button class="primary" type="button" on:click={savePost} disabled={busy}>保存</button></div></div>
+					<label for="post-path">文件路径</label><input id="post-path" class="input" bind:value={editorPath} placeholder="my-article.md" />
+					<div class="editor-toolbar"><div class="view-switcher" role="tablist" aria-label="文章视图"><button type="button" role="tab" aria-selected={viewMode === "edit"} class:active={viewMode === "edit"} on:click={() => (viewMode = "edit")}>编辑</button><button type="button" role="tab" aria-selected={viewMode === "split"} class:active={viewMode === "split"} on:click={() => (viewMode = "split")}>并排</button><button type="button" role="tab" aria-selected={viewMode === "preview"} class:active={viewMode === "preview"} on:click={() => (viewMode = "preview")}>预览</button></div><div class="editor-tools"><span class="preview-status">实时预览</span><button class="small ai-trigger" type="button" on:click={openAiAssistant} disabled={aiStatus === null} title={aiStatus?.configured ? "使用 AI 修改选区或正文" : "需要先在服务器配置 AI 模型"}>{aiStatus?.configured ? "AI 助手" : aiStatus === null ? "AI 加载中" : "AI 未配置"}</button></div></div>
+					{#if aiPanelOpen}<section class="ai-assistant" aria-labelledby="ai-assistant-title"><div class="ai-heading"><div><h3 id="ai-assistant-title">AI 文本助手</h3><p>{aiScopeLabel}{#if aiStatus?.model} · {aiStatus.model}{/if}</p></div><button class="quiet" type="button" on:click={resetAiAssistant}>关闭</button></div><div class="ai-controls"><label for="ai-mode">修改方式<select id="ai-mode" class="input" bind:value={aiMode}>{#each Object.entries(aiModeLabels) as [value, label]}<option value={value}>{label}</option>{/each}</select></label><label for="ai-instruction">补充要求<textarea id="ai-instruction" class="ai-instruction" bind:value={aiInstruction} maxlength="1000" placeholder="例如：保持技术术语不变，语气更自然"></textarea></label><button class="primary ai-generate" type="button" on:click={generateAiRewrite} disabled={aiBusy || !aiSourceText.trim() || !aiStatus?.configured}>{aiBusy ? "生成中..." : "生成建议"}</button></div>{#if aiErrorMessage}<p class="ai-error" role="alert">{aiErrorMessage}</p>{/if}{#if aiResult}<div class="ai-result-heading"><div><h4>建议稿</h4><span>可先修改，再应用到编辑器</span></div><div class="actions"><button class="quiet" type="button" on:click={() => (aiResult = "")}>清空</button><button class="primary" type="button" on:click={applyAiResult}>{aiSelectionStart >= 0 ? "应用到选区" : "替换正文"}</button></div></div><textarea class="ai-result-text" bind:value={aiResult} spellcheck="false" aria-label="AI 建议稿"></textarea>{/if}</section>{/if}
+					<div class:split={viewMode === "split"} class:preview-only={viewMode === "preview"} class="editor-canvas">{#if viewMode !== "preview"}<div class="editor-pane"><label for="post-content">Markdown</label><textarea id="post-content" class="markdown" bind:this={editorTextarea} bind:value={editorContent} spellcheck="false"></textarea></div>{/if}{#if viewMode !== "edit"}<article class="preview-pane" aria-label="Markdown 预览"><div class="markdown-preview">{@html previewHtml}</div></article>{/if}</div>
+				</section>
+			</section>
 		{:else if activeTab === "settings"}
 			<section class="panel settings"><div class="panel-heading"><div><h2>站点能力</h2><p class="muted">设置通过 GitHub 提交，下一次构建后生效。</p></div><button class="primary" type="button" on:click={saveSettings} disabled={busy || !adminConfig}>保存设置</button></div>{#if adminConfig}<label class="toggle"><span><strong>音乐播放器</strong><small>控制导航栏音乐入口和音乐功能</small></span><input type="checkbox" bind:checked={adminConfig.music.enabled} /></label><label class="toggle"><span><strong>侧栏</strong><small>控制全局侧栏布局</small></span><input type="checkbox" bind:checked={adminConfig.sidebar.enabled} /></label><h3>页面开关</h3>{#each Object.entries(adminConfig.pages) as [key, enabled]}<label class="toggle"><span><strong>{pageLabels[key] || key}</strong><small>关闭后页面返回 404 并从导航中隐藏</small></span><input type="checkbox" bind:checked={adminConfig.pages[key]} /></label>{/each}{:else}<p class="muted">正在加载设置...</p>{/if}</section>
 		{:else}
@@ -358,10 +509,11 @@ onMount(loadSession);
 	.panel { border: 1px solid #dbe7e3; border-radius: 14px; background: #fff; box-shadow: 0 8px 26px #2049410f; } .workspace { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 16px; } .post-list, .editor, .settings, .metrics { padding: 20px; } .panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
 	.post-items { display: grid; gap: 6px; max-height: 70vh; overflow: auto; } .post-item { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; color: #23413b; cursor: pointer; } .post-item:hover, .post-item.chosen { border-color: #a9d5ca; background: #eff9f5; } .post-item span { overflow: hidden; color: #78918b; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 	.editor label, .input, .markdown { display: block; width: 100%; } .editor label { margin: 12px 0 6px; color: #41655d; font-size: 13px; font-weight: 700; } .input, .markdown { border: 1px solid #cadbd6; border-radius: 9px; background: #fbfdfc; color: #19342f; outline: none; } .input { padding: 11px 12px; } .markdown { min-height: 62vh; padding: 16px; resize: vertical; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.65; } .input:focus, .markdown:focus { border-color: #16866f; box-shadow: 0 0 0 3px #16866f1f; }
-	.editor-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 20px; } .view-switcher { display: inline-flex; padding: 3px; border: 1px solid #cfe0db; border-radius: 9px; background: #f1f7f5; } .view-switcher button { border: 0; border-radius: 6px; padding: 7px 12px; background: transparent; color: #58766e; cursor: pointer; } .view-switcher button:hover { color: #176b5a; } .view-switcher button.active { background: #fff; color: #0d5145; box-shadow: 0 1px 4px #2049411a; font-weight: 700; } .view-switcher button:focus-visible { outline: 2px solid #16866f; outline-offset: 2px; } .preview-status { color: #78918b; font-size: 12px; }
+	.editor-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 20px; } .view-switcher { display: inline-flex; padding: 3px; border: 1px solid #cfe0db; border-radius: 9px; background: #f1f7f5; } .view-switcher button { border: 0; border-radius: 6px; padding: 7px 12px; background: transparent; color: #58766e; cursor: pointer; } .view-switcher button:hover { color: #176b5a; } .view-switcher button.active { background: #fff; color: #0d5145; box-shadow: 0 1px 4px #2049411a; font-weight: 700; } .view-switcher button:focus-visible { outline: 2px solid #16866f; outline-offset: 2px; } .editor-tools { display: flex; align-items: center; gap: 10px; } .preview-status { color: #78918b; font-size: 12px; }
+	.ai-assistant { margin: 16px 0 4px; padding: 18px 0; border-top: 1px solid #dbe7e3; border-bottom: 1px solid #dbe7e3; } .ai-heading, .ai-result-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; } .ai-heading h3, .ai-result-heading h4 { margin: 0; color: #214b42; font-size: 15px; } .ai-heading p, .ai-result-heading span { margin: 5px 0 0; color: #78918b; font-size: 12px; } .ai-controls { display: grid; grid-template-columns: minmax(160px, 220px) minmax(0, 1fr) auto; align-items: end; gap: 12px; margin-top: 14px; } .ai-controls label { margin: 0; } .ai-instruction, .ai-result-text { display: block; width: 100%; border: 1px solid #cadbd6; border-radius: 9px; background: #fbfdfc; color: #19342f; outline: none; } .ai-instruction { min-height: 72px; margin-top: 6px; padding: 10px 12px; resize: vertical; } .ai-result-heading { margin-top: 16px; } .ai-result-text { min-height: 220px; margin-top: 10px; padding: 14px; resize: vertical; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.65; } .ai-instruction:focus, .ai-result-text:focus { border-color: #16866f; box-shadow: 0 0 0 3px #16866f1f; } .ai-generate { min-height: 42px; } .ai-error { margin: 12px 0 0; color: #a13b31; font-size: 13px; }
 	.editor-canvas { min-width: 0; } .editor-canvas.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; } .editor-canvas.preview-only { display: block; } .editor-pane, .preview-pane { min-width: 0; } .preview-pane { max-height: 62vh; overflow: auto; border: 1px solid #cadbd6; border-radius: 9px; background: #fff; color: #213c36; } .markdown-preview { padding: 22px 24px; line-height: 1.75; overflow-wrap: anywhere; } .markdown-preview :global(h1), .markdown-preview :global(h2), .markdown-preview :global(h3), .markdown-preview :global(h4) { margin: 0 0 12px; color: #163d35; line-height: 1.3; } .markdown-preview :global(h1) { font-size: 28px; } .markdown-preview :global(h2) { margin-top: 22px; font-size: 23px; } .markdown-preview :global(h3) { margin-top: 18px; font-size: 19px; } .markdown-preview :global(p), .markdown-preview :global(ul), .markdown-preview :global(ol), .markdown-preview :global(blockquote) { margin: 0 0 14px; } .markdown-preview :global(ul), .markdown-preview :global(ol) { padding-left: 24px; } .markdown-preview :global(a) { color: #08745f; text-decoration: underline; text-underline-offset: 2px; } .markdown-preview :global(blockquote) { padding: 10px 16px; border-left: 3px solid #7eb9aa; background: #eff8f5; color: #527069; } .markdown-preview :global(code) { padding: 2px 5px; border-radius: 4px; background: #edf3f1; color: #8a3c55; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .9em; } .markdown-preview :global(pre) { margin: 0 0 16px; padding: 15px 17px; overflow: auto; border-radius: 8px; background: #182c28; color: #e8f5f0; } .markdown-preview :global(pre code) { padding: 0; background: transparent; color: inherit; } .markdown-preview :global(img) { display: block; max-width: 100%; height: auto; margin: 14px 0; border-radius: 8px; } .markdown-preview :global(hr) { margin: 24px 0; border: 0; border-top: 1px solid #dbe7e3; } .markdown-preview :global(table) { display: block; max-width: 100%; margin: 0 0 16px; overflow-x: auto; border-collapse: collapse; } .markdown-preview :global(th), .markdown-preview :global(td) { padding: 8px 10px; border: 1px solid #cfe0db; text-align: left; } .markdown-preview :global(th) { background: #eff8f5; } .preview-empty { color: #78918b; font-style: italic; }
 	.primary, .quiet, .small, .danger { border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; text-decoration: none; white-space: nowrap; } .primary { background: #126f5c; color: #fff; } .primary:hover { background: #0b594a; } .small { background: #e4f2ee; color: #176b5a; } .quiet { background: #edf3f1; color: #466861; } .danger { background: #fbe8e6; color: #a13b31; } button:disabled { cursor: wait; opacity: .55; }
 	.notice, .error { margin: 0 0 16px; padding: 12px 14px; border-radius: 9px; } .notice { background: #e6f6ee; color: #176445; } .error { background: #fff0ee; color: #a13b31; } .toggle { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid #e2ece9; } .toggle strong, .toggle small { display: block; } .toggle small { margin-top: 4px; color: #78918b; } .toggle input { width: 20px; height: 20px; accent-color: #16866f; }
 	.analytics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; } .metric-grid div { padding: 16px 12px; border-radius: 10px; background: #eff9f5; } .metric-grid strong, .metric-grid span { display: block; } .metric-grid strong { font-size: 26px; color: #126f5c; } .metric-grid span { margin-top: 5px; color: #66847c; font-size: 12px; } .runs { display: grid; gap: 8px; } .runs a { display: grid; gap: 4px; padding: 10px; border-radius: 8px; background: #f3f8f6; color: #24594e; text-decoration: none; } .runs span { color: #718b84; font-size: 12px; }
-	@media (max-width: 900px) { .workspace, .analytics-grid { grid-template-columns: 1fr; } .post-items { max-height: 260px; } .markdown { min-height: 55vh; } .editor-canvas.split { grid-template-columns: 1fr; } .preview-pane { max-height: none; } } @media (max-width: 560px) { .shell { padding: 22px 14px 42px; } .header { display: block; } .header-actions { margin-top: 16px; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .panel-heading { display: block; } .actions { margin-top: 12px; } .editor-toolbar { align-items: flex-start; flex-direction: column; } .markdown-preview { padding: 18px; } }
+	@media (max-width: 900px) { .workspace, .analytics-grid { grid-template-columns: 1fr; } .post-items { max-height: 260px; } .markdown { min-height: 55vh; } .editor-canvas.split { grid-template-columns: 1fr; } .preview-pane { max-height: none; } .ai-controls { grid-template-columns: 1fr; } .ai-generate { justify-self: start; } } @media (max-width: 560px) { .shell { padding: 22px 14px 42px; } .header { display: block; } .header-actions { margin-top: 16px; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .panel-heading { display: block; } .actions { margin-top: 12px; } .editor-toolbar { align-items: flex-start; flex-direction: column; } .editor-tools { justify-content: space-between; width: 100%; } .ai-heading, .ai-result-heading { flex-direction: column; } .markdown-preview { padding: 18px; } }
 </style>

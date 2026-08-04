@@ -24,6 +24,26 @@ ADMIN_SESSION_SECRET=<至少 32 字节随机值>
 
 `ADMIN_GITHUB_CLIENT_SECRET`、`ADMIN_SESSION_SECRET` 和 OAuth 访问令牌不能放在浏览器代码中。
 
+## AI 文本助手
+
+后台文章编辑器支持对当前选区或整篇正文进行润色、精简、扩写、校对和自定义修改。
+AI 只返回 Markdown 建议，不具备 GitHub 写入、部署或服务器工具权限；建议必须先由管理员
+应用到编辑器，再单独点击保存才会提交。
+
+服务端使用 OpenAI 兼容的 Chat Completions API。将下面的变量放入 ECS 的
+`/etc/firefly/admin-api.env`：
+
+```text
+ADMIN_AI_BASE_URL=https://api.openai.com/v1
+ADMIN_AI_API_KEY=...
+ADMIN_AI_MODEL=...
+ADMIN_AI_TIMEOUT_MS=60000
+```
+
+`ADMIN_AI_BASE_URL` 也可以指向 DeepSeek、通义千问兼容模式或自建模型服务。
+使用无鉴权的本地模型时可以留空 `ADMIN_AI_API_KEY`，但生产环境仍应限制模型服务的网络访问。
+文章内容会发送给所配置的模型供应商，请按其隐私政策处理敏感内容。
+
 ## ECS 部署
 
 将 `admin-api/server.mjs` 放到 `/opt/firefly-admin/server.mjs`，将
@@ -36,6 +56,8 @@ systemctl daemon-reload
 systemctl enable --now firefly-admin-api
 nginx -t && systemctl reload nginx
 ```
+
+AI 请求默认最多等待 60 秒，因此 Nginx 的 `/admin-api/` 反向代理读取超时应至少为 75 秒。
 
 ## 功能开关
 
