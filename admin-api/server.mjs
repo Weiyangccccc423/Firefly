@@ -1,5 +1,10 @@
 import crypto from "node:crypto";
 import http from "node:http";
+import {
+	configFileCatalog,
+	configFileDefinition,
+	validateConfigFileContent,
+} from "./config-files.mjs";
 
 const configuredAiTimeout = Number(process.env.ADMIN_AI_TIMEOUT_MS || 120_000);
 
@@ -353,6 +358,74 @@ async function getConfig(token) {
 	}
 }
 
+function managedConfigDefinition(key) {
+	try {
+		return configFileDefinition(key);
+	} catch {
+		throw new HttpError(400, "Unknown configuration file");
+	}
+}
+
+async function getManagedConfigFile(key, token) {
+	const definition = managedConfigDefinition(key);
+	const file = await readFile(definition.path, token);
+	if (!file) throw new HttpError(404, "Configuration file not found");
+	return {
+		key: definition.key,
+		path: definition.path,
+		name: definition.name,
+		language: definition.language,
+		sha: file.sha,
+		content: file.content,
+	};
+}
+
+async function updateManagedConfigFile(payload, token, login) {
+	if (!payload || typeof payload !== "object")
+		throw new HttpError(400, "Invalid configuration payload");
+	const definition = managedConfigDefinition(payload.key);
+	if (typeof payload.sha !== "string" || !payload.sha)
+		throw new HttpError(400, "Configuration file SHA is required");
+	try {
+		validateConfigFileContent(definition, payload.content);
+	} catch (error) {
+		throw new HttpError(
+			400,
+			error instanceof Error
+				? error.message
+				: "Configuration validation failed",
+		);
+	}
+	const current = await readFile(definition.path, token);
+	if (!current) throw new HttpError(404, "Configuration file not found");
+	if (current.sha !== payload.sha)
+		throw new HttpError(
+			409,
+			"Configuration changed on GitHub; reload before saving",
+		);
+	const result = await writeFile(
+		definition.path,
+		payload.content,
+		current.sha,
+		`chore: update ${definition.path.split("/").pop()}`,
+		token,
+	);
+	console.info(
+		JSON.stringify({
+			event: "admin_config_file_update",
+			login,
+			key: definition.key,
+			contentLength: payload.content.length,
+		}),
+	);
+	return {
+		ok: true,
+		key: definition.key,
+		sha: result.content?.sha || null,
+		commit: result.commit?.html_url || null,
+	};
+}
+
 async function analytics(url) {
 	if (!cfg.umamiWebsiteId || !cfg.umamiToken)
 		return {
@@ -672,12 +745,41 @@ async function route(request, response) {
 			commit: result.commit?.html_url || null,
 		});
 	}
+	if (method === "GET" && url.pathname === "/api/config/files")
+		return send(response, 200, { files: configFileCatalog() });
+	if (url.pathname === "/api/config/file") {
+		if (method === "GET")
+			return send(
+				response,
+				200,
+				await getManagedConfigFile(url.searchParams.get("key"), value.token),
+			);
+		if (method === "PUT") {
+			let payload;
+			try {
+				payload = JSON.parse(await body(request, 400_000));
+			} catch (error) {
+				if (error instanceof HttpError) throw error;
+				throw new HttpError(400, "Invalid configuration request body");
+			}
+			return send(
+				response,
+				200,
+				await updateManagedConfigFile(payload, value.token, value.login),
+			);
+		}
+	}
 	if (url.pathname === "/api/config") {
 		if (method === "GET")
 			return send(response, 200, await getConfig(value.token));
 		if (method === "PUT") {
 			const payload = JSON.parse(await body(request));
 			const current = await getConfig(value.token);
+			if (current._sha && payload._sha !== current._sha)
+				throw new HttpError(
+					409,
+					"Feature settings changed on GitHub; reload before saving",
+				);
 			const next = sanitizeConfig(payload, current);
 			const file = await readFile(CONFIG_PATH, value.token);
 			const result = await writeFile(
@@ -689,6 +791,7 @@ async function route(request, response) {
 			);
 			return send(response, 200, {
 				...next,
+				_sha: result.content?.sha || null,
 				ok: true,
 				commit: result.commit?.html_url || null,
 			});

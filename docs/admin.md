@@ -46,8 +46,8 @@ ADMIN_AI_TIMEOUT_MS=120000
 
 ## ECS 部署
 
-将 `admin-api/server.mjs` 放到 `/opt/firefly-admin/server.mjs`，将
-`ops/firefly-admin-api.service` 安装到 systemd，并将
+将 `admin-api/server.mjs` 和 `admin-api/config-files.mjs` 放到
+`/opt/firefly-admin/`，将 `ops/firefly-admin-api.service` 安装到 systemd，并将
 `ops/nginx-admin-api.conf` 的 location 放进 `wiyac5.xyz` 的 HTTPS server
 块。随后执行：
 
@@ -59,11 +59,15 @@ nginx -t && systemctl reload nginx
 
 AI 请求默认最多等待 120 秒，因此 Nginx 的 `/admin-api/` 反向代理读取超时应至少为 150 秒。
 
-## 功能开关
+## 配置中心
 
 后台修改会提交 `src/config/adminOverrides.json`，由下一次 Astro 构建生效。
-当前支持音乐播放器、侧栏以及页面开关。文章修改会直接提交对应的 Markdown
-文件，并触发已有的 OSS 发布工作流。
+功能开关覆盖音乐播放器、侧栏和页面路由。音乐播放来源、音量、循环方式、歌词、
+Meting API 和本地歌曲列表由结构化表单写入 `src/config/musicSettings.json`。
+
+其余站点配置通过后端 allowlist 中的高级文件编辑器管理，保存时会校验文件类型、
+关键导出和 GitHub blob SHA。文章与配置修改都会提交到 GitHub 并触发已有的 OSS
+发布工作流。
 
 ## 访问统计
 

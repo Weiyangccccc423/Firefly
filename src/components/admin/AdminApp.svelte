@@ -1,15 +1,11 @@
 <script lang="ts">
 import { marked } from "marked";
 import { onMount, tick } from "svelte";
+import ConfigWorkspace from "./ConfigWorkspace.svelte";
 
 type Session = { authenticated: boolean; login: string | null };
 type PostSummary = { path: string; sha: string; size: number; title: string };
 type PostFile = { path: string; sha: string; content: string };
-type AdminConfig = {
-	music: { enabled: boolean };
-	pages: Record<string, boolean>;
-	sidebar: { enabled: boolean };
-};
 type DeployRun = {
 	id: number;
 	name: string;
@@ -31,16 +27,6 @@ type AiMode = "polish" | "concise" | "expand" | "proofread" | "custom";
 type AiStatus = { configured: boolean; model: string | null };
 type AiRewrite = { result: string; model: string };
 
-const pageLabels: Record<string, string> = {
-	friends: "友链页面",
-	sponsor: "赞助页面",
-	guestbook: "留言板",
-	bangumi: "番组计划",
-	gallery: "相册",
-	anime: "追番页面",
-	dynamic: "动态页面",
-	rss: "RSS 订阅",
-};
 const defaultMarkdown = [
 	"---",
 	`title: "新文章"`,
@@ -63,7 +49,6 @@ let editorFrontmatter = "";
 let editorBody = "";
 let editorSha = "";
 let activeTab: "posts" | "settings" | "analytics" = "posts";
-let adminConfig: AdminConfig | null = null;
 let analytics: Analytics | null = null;
 let deployRuns: DeployRun[] = [];
 let busy = false;
@@ -454,34 +439,6 @@ async function deletePost() {
 	}
 }
 
-async function loadSettings() {
-	try {
-		adminConfig = await api<AdminConfig>("/api/config");
-	} catch (error) {
-		fail(error);
-	}
-}
-
-async function saveSettings() {
-	if (!adminConfig) return;
-	busy = true;
-	try {
-		await api("/api/config", {
-			method: "PUT",
-			body: JSON.stringify({
-				...adminConfig,
-				message: "chore: update site feature settings",
-			}),
-		});
-		notice = "功能设置已提交，构建完成后生效。";
-		errorMessage = "";
-	} catch (error) {
-		fail(error);
-	} finally {
-		busy = false;
-	}
-}
-
 async function loadAnalytics() {
 	try {
 		analytics = await api<Analytics>("/api/analytics/summary");
@@ -513,7 +470,6 @@ async function dispatchDeploy() {
 
 function switchTab(tab: "posts" | "settings" | "analytics") {
 	activeTab = tab;
-	if (tab === "settings" && !adminConfig) loadSettings();
 	if (tab === "analytics") {
 		loadAnalytics();
 		loadDeployRuns();
@@ -530,8 +486,8 @@ onMount(loadSession);
 {:else}
 	<main class="shell">
 		<header class="header"><div><p class="eyebrow">FIREFLY ADMIN</p><h1>内容与站点控制台</h1></div><div class="header-actions"><span class="user">{session.login}</span><button class="quiet" type="button" on:click={() => api("/auth/logout", { method: "POST" }).then(() => (session = null))}>退出</button></div></header>
-		<nav class="tabs" aria-label="后台模块"><button class:active={activeTab === "posts"} type="button" on:click={() => switchTab("posts")}>文章</button><button class:active={activeTab === "settings"} type="button" on:click={() => switchTab("settings")}>站点能力</button><button class:active={activeTab === "analytics"} type="button" on:click={() => switchTab("analytics")}>访问与部署</button></nav>
-		{#if notice}<div class="notice">{notice}</div>{/if}{#if errorMessage}<div class="error">{errorMessage}</div>{/if}
+		<nav class="tabs" aria-label="后台模块"><button class:active={activeTab === "posts"} type="button" on:click={() => switchTab("posts")}>文章</button><button class:active={activeTab === "settings"} type="button" on:click={() => switchTab("settings")}>配置中心</button><button class:active={activeTab === "analytics"} type="button" on:click={() => switchTab("analytics")}>访问与部署</button></nav>
+		<div aria-live="polite" aria-atomic="true">{#if notice}<div class="notice">{notice}</div>{/if}{#if errorMessage}<div class="error" role="alert">{errorMessage}</div>{/if}</div>
 
 		{#if activeTab === "posts"}
 			<section class="workspace">
@@ -546,7 +502,7 @@ onMount(loadSession);
 				</section>
 			</section>
 		{:else if activeTab === "settings"}
-			<section class="panel settings"><div class="panel-heading"><div><h2>站点能力</h2><p class="muted">设置通过 GitHub 提交，下一次构建后生效。</p></div><button class="primary" type="button" on:click={saveSettings} disabled={busy || !adminConfig}>保存设置</button></div>{#if adminConfig}<label class="toggle"><span><strong>音乐播放器</strong><small>控制导航栏音乐入口和音乐功能</small></span><input type="checkbox" bind:checked={adminConfig.music.enabled} /></label><label class="toggle"><span><strong>侧栏</strong><small>控制全局侧栏布局</small></span><input type="checkbox" bind:checked={adminConfig.sidebar.enabled} /></label><h3>页面开关</h3>{#each Object.entries(adminConfig.pages) as [key, enabled]}<label class="toggle"><span><strong>{pageLabels[key] || key}</strong><small>关闭后页面返回 404 并从导航中隐藏</small></span><input type="checkbox" bind:checked={adminConfig.pages[key]} /></label>{/each}{:else}<p class="muted">正在加载设置...</p>{/if}</section>
+			<ConfigWorkspace />
 		{:else}
 			<section class="analytics-grid"><div class="panel metrics"><div class="panel-heading"><div><h2>访问统计</h2><p class="muted">最近 7 天，数据来自 Umami。</p></div><button class="small" type="button" on:click={loadAnalytics}>刷新</button></div>{#if analytics?.configured}<div class="metric-grid"><div><strong>{analytics.pageviews ?? 0}</strong><span>页面浏览</span></div><div><strong>{analytics.visitors ?? 0}</strong><span>访客</span></div><div><strong>{analytics.visits ?? 0}</strong><span>访问次数</span></div><div><strong>{analytics.bounces ?? 0}</strong><span>跳出</span></div></div>{:else}<p class="muted">{analytics?.message || "正在加载统计..."}</p>{/if}</div><div class="panel metrics"><div class="panel-heading"><div><h2>部署</h2><p class="muted">触发 GitHub Actions 的 OSS 发布工作流。</p></div><button class="primary" type="button" on:click={dispatchDeploy} disabled={busy}>重新部署</button></div>{#if deployRuns.length}<div class="runs">{#each deployRuns as run}<a href={run.url} target="_blank" rel="noreferrer"><strong>{run.name}</strong><span>{run.status} / {run.conclusion || "进行中"} · {new Date(run.createdAt).toLocaleString()}</span></a>{/each}</div>{:else}<p class="muted">暂无部署记录。</p>{/if}</div></section>
 		{/if}
