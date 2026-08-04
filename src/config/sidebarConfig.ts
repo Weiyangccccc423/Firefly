@@ -1,11 +1,12 @@
 import type { SidebarLayoutConfig } from "../types/sidebarConfig";
+import adminOverrides from "./adminOverrides.json";
 
 /**
  * 侧边栏布局配置
  */
 export const sidebarLayoutConfig: SidebarLayoutConfig = {
 	// 是否启用侧边栏功能
-	enable: true,
+	enable: adminOverrides.sidebar?.enabled ?? true,
 
 	// 侧边栏位置：
 	// left: 仅显示左侧边栏

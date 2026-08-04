@@ -1,0 +1,17 @@
+{
+	"music": {
+		"enabled": true
+	},
+	"pages": {
+		"friends": false,
+		"sponsor": false,
+		"guestbook": true,
+		"bangumi": false,
+		"gallery": true,
+		"anime": true,
+		"dynamic": true
+	},
+	"sidebar": {
+		"enabled": true
+	}
+}
