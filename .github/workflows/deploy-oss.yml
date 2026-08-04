@@ -93,6 +93,20 @@ jobs:
             --recursive \
             --update
 
+      - name: Remove disabled RSS objects
+        run: |
+          if [ ! -f dist/rss.xml ]; then
+            "$RUNNER_TEMP/ossutil-bin/ossutil" rm "oss://${OSS_BUCKET}/rss.xml" \
+              --config-file "$RUNNER_TEMP/ossutilconfig" \
+              --force || true
+          fi
+          if [ -f dist/rss/index.html ] && grep -q "Redirecting to: /404/" dist/rss/index.html; then
+            "$RUNNER_TEMP/ossutil-bin/ossutil" rm "oss://${OSS_BUCKET}/rss/" \
+              --config-file "$RUNNER_TEMP/ossutilconfig" \
+              --recursive \
+              --force || true
+          fi
+
       - name: Publish deployment summary
         run: |
           {
