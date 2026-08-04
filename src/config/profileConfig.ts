@@ -1,4 +1,7 @@
 import type { ProfileConfig } from "../types/profileConfig";
+import adminOverrides from "./adminOverrides.json";
+
+const rssEnabled = adminOverrides.pages?.rss ?? true;
 
 export const profileConfig: ProfileConfig = {
 	// 头像
@@ -27,11 +30,15 @@ export const profileConfig: ProfileConfig = {
 			url: "https://github.com/Weiyangccccc423",
 			showName: false,
 		},
-		{
-			name: "RSS",
-			icon: "fa7-solid:rss",
-			url: "/rss/",
-			showName: false,
-		},
+		...(rssEnabled
+			? [
+					{
+						name: "RSS",
+						icon: "fa7-solid:rss",
+						url: "/rss/",
+						showName: false,
+					},
+				]
+			: []),
 	],
 };

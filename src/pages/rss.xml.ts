@@ -22,6 +22,7 @@ function stripInvalidXmlChars(str: string): string {
 }
 
 export async function GET(context: APIContext) {
+	if (!siteConfig.pages.rss) return new Response(null, { status: 404 });
 	const blog = await getSortedPosts();
 	const renderers = await loadRenderers([getMDXRenderer()]);
 	const container = await AstroContainer.create({ renderers });

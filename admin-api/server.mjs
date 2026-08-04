@@ -40,6 +40,7 @@ const PAGE_KEYS = [
 	"gallery",
 	"anime",
 	"dynamic",
+	"rss",
 ];
 const DEFAULT_CONFIG = {
 	music: { enabled: true },
@@ -51,6 +52,7 @@ const DEFAULT_CONFIG = {
 		gallery: true,
 		anime: true,
 		dynamic: true,
+		rss: true,
 	},
 	sidebar: { enabled: true },
 };

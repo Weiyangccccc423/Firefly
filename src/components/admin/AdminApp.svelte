@@ -39,6 +39,7 @@ const pageLabels: Record<string, string> = {
 	gallery: "相册",
 	anime: "追番页面",
 	dynamic: "动态页面",
+	rss: "RSS 订阅",
 };
 const defaultMarkdown = [
 	"---",

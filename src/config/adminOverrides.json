@@ -9,7 +9,8 @@
 		"bangumi": false,
 		"gallery": true,
 		"anime": true,
-		"dynamic": true
+		"dynamic": true,
+		"rss": false
 	},
 	"sidebar": {
 		"enabled": true
