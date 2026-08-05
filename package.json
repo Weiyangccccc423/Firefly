@@ -14,7 +14,7 @@
     "new-d": "tsx scripts/new-dynamic.js",
     "new-post": "node scripts/new-post.js",
     "admin-api": "node admin-api/server.mjs",
-    "build:admin-api": "esbuild admin-api/server.mjs --bundle --platform=node --target=node22 --format=esm --outfile=admin-api/dist/server.mjs",
+    "build:admin-api": "esbuild admin-api/server.mjs --bundle --platform=node --target=node22 --format=cjs --outfile=admin-api/dist/server.cjs",
     "test:admin": "node --test admin-api/*.test.mjs",
     "format": "biome format --write ./src",
     "lint": "biome check --write ./src",

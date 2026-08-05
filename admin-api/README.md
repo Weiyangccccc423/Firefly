@@ -49,6 +49,7 @@ Build the dependency-free Node 22 deployment artifact with:
 pnpm build:admin-api
 ```
 
-Upload `admin-api/dist/server.mjs` to `/opt/firefly-admin/server.mjs`. The
-systemd unit mounts this bundle read-only into the Node container; production
-does not install npm packages at runtime.
+Upload `admin-api/dist/server.cjs` to `/opt/firefly-admin/server.cjs`. The
+systemd unit mounts this CommonJS bundle read-only into the Node container;
+production does not install npm packages at runtime. CommonJS is intentional:
+the TypeScript compiler used for the field tree loads Node modules dynamically.
