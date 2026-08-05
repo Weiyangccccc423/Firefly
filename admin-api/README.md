@@ -8,7 +8,7 @@ It provides:
 - GitHub OAuth restricted to `ADMIN_GITHUB_USER`.
 - Markdown file CRUD through the GitHub Contents API.
 - `src/config/adminOverrides.json` feature-toggle commits.
-- Allowlisted site-config file editing with validation and SHA conflict checks.
+- Allowlisted site-config forms with validation and SHA conflict checks.
 - Structured music-player settings backed by `src/config/musicSettings.json`.
 - GitHub Actions deployment status and manual dispatch.
 - Optional Umami statistics proxy.
@@ -28,14 +28,27 @@ The AI endpoint is authenticated, separately rate-limited, and has no tools or
 repository write access. It returns a suggestion only; applying and saving are
 separate administrator actions.
 
-Configuration file access is limited to the registry in `config-files.mjs`.
-The API never accepts a repository path from the browser. TypeScript files must
-retain their expected exports, JSON files are parsed and schema-checked, and
-Footer HTML rejects active content. Updates require the latest GitHub blob SHA,
-so stale browser sessions cannot silently overwrite newer changes.
+Configuration access is limited to the registry in `config-files.mjs`. The API
+never accepts a repository path from the browser. It parses TypeScript with the
+compiler AST and returns a field tree without source text or computed
+expressions. Saves accept only typed `{ path, value }` updates, then preserve
+the surrounding source, reparse it, and run the existing file validators. JSON
+files are parsed and schema-checked, and Footer HTML rejects active content.
+Updates require the latest GitHub blob SHA, so stale browser sessions cannot
+silently overwrite newer changes.
 
 Run the focused validation suite with:
 
 ```sh
 pnpm test:admin
 ```
+
+Build the dependency-free Node 22 deployment artifact with:
+
+```sh
+pnpm build:admin-api
+```
+
+Upload `admin-api/dist/server.mjs` to `/opt/firefly-admin/server.mjs`. The
+systemd unit mounts this bundle read-only into the Node container; production
+does not install npm packages at runtime.

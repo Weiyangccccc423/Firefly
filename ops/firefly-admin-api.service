@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStartPre=-/usr/bin/docker rm -f firefly-admin-api
-ExecStart=/usr/bin/docker run --name firefly-admin-api --network host --env-file /etc/firefly/admin-api.env -v /opt/firefly-admin/server.mjs:/app/server.mjs:ro -v /opt/firefly-admin/config-files.mjs:/app/config-files.mjs:ro m.daocloud.io/docker.io/library/node:22-alpine node /app/server.mjs
+ExecStart=/usr/bin/docker run --name firefly-admin-api --network host --env-file /etc/firefly/admin-api.env -v /opt/firefly-admin/server.mjs:/app/server.mjs:ro m.daocloud.io/docker.io/library/node:22-alpine node /app/server.mjs
 ExecStop=/usr/bin/docker stop -t 10 firefly-admin-api
 ExecStopPost=-/usr/bin/docker rm -f firefly-admin-api
 Restart=always

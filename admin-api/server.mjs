@@ -5,6 +5,7 @@ import {
 	configFileDefinition,
 	validateConfigFileContent,
 } from "./config-files.mjs";
+import { applyConfigUpdates, parseConfigDocument } from "./config-model.mjs";
 
 const configuredAiTimeout = Number(process.env.ADMIN_AI_TIMEOUT_MS || 120_000);
 
@@ -374,9 +375,11 @@ async function getManagedConfigFile(key, token) {
 		key: definition.key,
 		path: definition.path,
 		name: definition.name,
+		group: definition.group,
 		language: definition.language,
+		description: definition.description,
 		sha: file.sha,
-		content: file.content,
+		document: parseConfigDocument(definition, file.content),
 	};
 }
 
@@ -386,8 +389,17 @@ async function updateManagedConfigFile(payload, token, login) {
 	const definition = managedConfigDefinition(payload.key);
 	if (typeof payload.sha !== "string" || !payload.sha)
 		throw new HttpError(400, "Configuration file SHA is required");
+	const current = await readFile(definition.path, token);
+	if (!current) throw new HttpError(404, "Configuration file not found");
+	if (current.sha !== payload.sha)
+		throw new HttpError(
+			409,
+			"Configuration changed on GitHub; reload before saving",
+		);
+	let content;
 	try {
-		validateConfigFileContent(definition, payload.content);
+		content = applyConfigUpdates(definition, current.content, payload.updates);
+		validateConfigFileContent(definition, content);
 	} catch (error) {
 		throw new HttpError(
 			400,
@@ -396,16 +408,9 @@ async function updateManagedConfigFile(payload, token, login) {
 				: "Configuration validation failed",
 		);
 	}
-	const current = await readFile(definition.path, token);
-	if (!current) throw new HttpError(404, "Configuration file not found");
-	if (current.sha !== payload.sha)
-		throw new HttpError(
-			409,
-			"Configuration changed on GitHub; reload before saving",
-		);
 	const result = await writeFile(
 		definition.path,
-		payload.content,
+		content,
 		current.sha,
 		`chore: update ${definition.path.split("/").pop()}`,
 		token,
@@ -415,7 +420,7 @@ async function updateManagedConfigFile(payload, token, login) {
 			event: "admin_config_file_update",
 			login,
 			key: definition.key,
-			contentLength: payload.content.length,
+			updateCount: payload.updates.length,
 		}),
 	);
 	return {
@@ -423,6 +428,7 @@ async function updateManagedConfigFile(payload, token, login) {
 		key: definition.key,
 		sha: result.content?.sha || null,
 		commit: result.commit?.html_url || null,
+		document: parseConfigDocument(definition, content),
 	};
 }
 

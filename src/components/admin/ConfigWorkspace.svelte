@@ -1,5 +1,15 @@
 <script lang="ts">
 import { onMount } from "svelte";
+import ConfigFieldEditor from "./ConfigFieldEditor.svelte";
+import type {
+	ConfigDocument,
+	ConfigField,
+	ConfigFileSummary,
+	ConfigUpdate,
+	JsonValue,
+	ManagedConfigFile,
+	SaveFileResponse,
+} from "./config-types";
 
 type SettingsSection = "features" | "music" | "files";
 type AdminConfig = {
@@ -7,18 +17,6 @@ type AdminConfig = {
 	pages: Record<string, boolean>;
 	sidebar: { enabled: boolean };
 	_sha?: string | null;
-};
-type ConfigFileSummary = {
-	key: string;
-	path: string;
-	name: string;
-	group: string;
-	language: string;
-	description: string;
-};
-type ManagedConfigFile = ConfigFileSummary & {
-	sha: string;
-	content: string;
 };
 type MusicTrack = {
 	name: string;
@@ -44,8 +42,6 @@ type MusicSettings = {
 	};
 	local: { playlist: MusicTrack[] };
 };
-type SaveFileResponse = { ok: boolean; sha: string | null };
-
 const pageLabels: Record<string, string> = {
 	friends: "友链页面",
 	sponsor: "赞助页面",
@@ -71,9 +67,10 @@ let catalog: ConfigFileSummary[] = [];
 let musicSettings: MusicSettings | null = null;
 let musicSha = "";
 let musicSnapshot = "";
+let musicDocument: ConfigDocument | null = null;
 let selectedFile: ManagedConfigFile | null = null;
-let fileContent = "";
-let fileSnapshot = "";
+let fileOriginalValues: Record<string, JsonValue> = {};
+let fileUpdates: Record<string, JsonValue> = {};
 let fileFilter = "";
 let busy = false;
 let loadingFile = false;
@@ -86,7 +83,7 @@ $: featureDirty = Boolean(
 $: musicDirty = Boolean(
 	musicSettings && musicSnapshot !== JSON.stringify(musicSettings),
 );
-$: fileDirty = Boolean(selectedFile && fileSnapshot !== fileContent);
+$: fileDirty = Boolean(selectedFile && Object.keys(fileUpdates).length > 0);
 $: filteredCatalog = catalog.filter((file) => {
 	const query = fileFilter.trim().toLowerCase();
 	return (
@@ -127,6 +124,94 @@ function fail(error: unknown) {
 	notice = "";
 }
 
+function cloneValue<T extends JsonValue>(value: T): T {
+	return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function fieldValue(field: ConfigField): JsonValue | undefined {
+	if (field.editable && field.value !== undefined)
+		return cloneValue(field.value);
+	if (field.kind !== "object") return undefined;
+	const value: Record<string, JsonValue> = {};
+	for (const child of field.children || []) {
+		const childValue = fieldValue(child);
+		if (childValue !== undefined) value[child.key] = childValue;
+	}
+	return value;
+}
+
+function documentValue(document: ConfigDocument) {
+	const root = document.sections[0]?.field;
+	if (!root) throw new Error("配置字段为空");
+	const value = fieldValue(root);
+	if (!value || typeof value !== "object" || Array.isArray(value))
+		throw new Error("配置字段结构无效");
+	return value;
+}
+
+function collectFieldValues(document: ConfigDocument) {
+	const values: Record<string, JsonValue> = {};
+	function visit(field: ConfigField) {
+		if (field.editable && field.value !== undefined)
+			values[field.path] = cloneValue(field.value);
+		for (const child of field.children || []) visit(child);
+	}
+	for (const item of document.sections) visit(item.field);
+	return values;
+}
+
+function updateDocumentField(
+	document: ConfigDocument,
+	path: string,
+	value: JsonValue,
+) {
+	function visit(field: ConfigField): boolean {
+		if (field.path === path && field.editable) {
+			field.value = cloneValue(value);
+			return true;
+		}
+		return (field.children || []).some(visit);
+	}
+	if (!document.sections.some((item) => visit(item.field)))
+		throw new Error("配置字段不存在或不可编辑");
+}
+
+function collectValueUpdates(
+	field: ConfigField,
+	nextValue: JsonValue | undefined,
+	updates: ConfigUpdate[],
+) {
+	if (field.editable) {
+		if (
+			field.value !== undefined &&
+			nextValue !== undefined &&
+			JSON.stringify(field.value) !== JSON.stringify(nextValue)
+		)
+			updates.push({ path: field.path, value: cloneValue(nextValue) });
+		return;
+	}
+	if (
+		field.kind !== "object" ||
+		!nextValue ||
+		typeof nextValue !== "object" ||
+		Array.isArray(nextValue)
+	)
+		return;
+	for (const child of field.children || [])
+		collectValueUpdates(child, nextValue[child.key], updates);
+}
+
+function updateSelectedField(path: string, value: JsonValue) {
+	if (!selectedFile) return;
+	const document = structuredClone(selectedFile.document);
+	updateDocumentField(document, path, value);
+	const updates = { ...fileUpdates, [path]: cloneValue(value) };
+	if (JSON.stringify(fileOriginalValues[path]) === JSON.stringify(value))
+		delete updates[path];
+	fileUpdates = updates;
+	selectedFile = { ...selectedFile, document };
+}
+
 async function loadFeatureConfig() {
 	featureConfig = await api<AdminConfig>("/api/config");
 	featureSnapshot = JSON.stringify(featureConfig);
@@ -145,9 +230,10 @@ async function getManagedFile(key: string) {
 
 async function loadMusicSettings() {
 	const file = await getManagedFile("music-settings");
-	const parsed = JSON.parse(file.content) as MusicSettings;
+	const parsed = documentValue(file.document) as unknown as MusicSettings;
 	musicSettings = parsed;
 	musicSha = file.sha;
+	musicDocument = file.document;
 	musicSnapshot = JSON.stringify(parsed);
 }
 
@@ -186,37 +272,48 @@ async function saveFeatureConfig() {
 	}
 }
 
-function musicPayload() {
-	if (!musicSettings) throw new Error("音乐设置尚未加载");
+function musicUpdates() {
+	if (!musicSettings || !musicDocument) throw new Error("音乐设置尚未加载");
 	if (musicSettings.mode === "local") {
 		for (const [index, track] of musicSettings.local.playlist.entries()) {
 			if (!track.name.trim() || !track.artist.trim() || !track.url.trim())
 				throw new Error(`第 ${index + 1} 首歌曲缺少名称、艺术家或音频地址`);
 		}
 	}
-	return `${JSON.stringify(musicSettings, null, "\t")}\n`;
+	const updates: ConfigUpdate[] = [];
+	const root = musicDocument.sections[0]?.field;
+	if (!root) throw new Error("音乐配置字段为空");
+	collectValueUpdates(root, musicSettings as unknown as JsonValue, updates);
+	return updates;
 }
 
 async function saveMusicSettings() {
 	if (!musicSettings || !musicDirty) return;
 	startAction();
 	try {
-		const content = musicPayload();
+		const updates = musicUpdates();
+		if (!updates.length) return;
 		const result = await api<SaveFileResponse>("/api/config/file", {
 			method: "PUT",
 			body: JSON.stringify({
 				key: "music-settings",
 				sha: musicSha,
-				content,
+				updates,
 			}),
 		});
 		if (result.sha) musicSha = result.sha;
+		musicDocument = result.document;
+		musicSettings = documentValue(result.document) as unknown as MusicSettings;
 		musicSnapshot = JSON.stringify(musicSettings);
 		notice = "音乐设置已提交，部署完成后生效。";
 		if (selectedFile?.key === "music-settings") {
-			selectedFile = { ...selectedFile, sha: musicSha, content };
-			fileContent = content;
-			fileSnapshot = content;
+			selectedFile = {
+				...selectedFile,
+				sha: musicSha,
+				document: result.document,
+			};
+			fileOriginalValues = collectFieldValues(result.document);
+			fileUpdates = {};
 		}
 	} catch (error) {
 		fail(error);
@@ -291,8 +388,8 @@ async function selectConfigFile(key: string) {
 	errorMessage = "";
 	try {
 		selectedFile = await getManagedFile(key);
-		fileContent = selectedFile.content;
-		fileSnapshot = selectedFile.content;
+		fileOriginalValues = collectFieldValues(selectedFile.document);
+		fileUpdates = {};
 	} catch (error) {
 		fail(error);
 	} finally {
@@ -304,22 +401,34 @@ async function saveConfigFile() {
 	if (!selectedFile || !fileDirty) return;
 	startAction();
 	try {
+		const updates = Object.entries(fileUpdates).map(([path, value]) => ({
+			path,
+			value,
+		}));
 		const result = await api<SaveFileResponse>("/api/config/file", {
 			method: "PUT",
 			body: JSON.stringify({
 				key: selectedFile.key,
 				sha: selectedFile.sha,
-				content: fileContent,
+				updates,
 			}),
 		});
 		selectedFile = {
 			...selectedFile,
 			sha: result.sha || selectedFile.sha,
-			content: fileContent,
+			document: result.document,
 		};
-		fileSnapshot = fileContent;
+		fileOriginalValues = collectFieldValues(result.document);
+		fileUpdates = {};
 		notice = `${selectedFile.name}已提交，部署完成后生效。`;
-		if (selectedFile.key === "music-settings") await loadMusicSettings();
+		if (selectedFile.key === "music-settings") {
+			musicSha = selectedFile.sha;
+			musicDocument = result.document;
+			musicSettings = documentValue(
+				result.document,
+			) as unknown as MusicSettings;
+			musicSnapshot = JSON.stringify(musicSettings);
+		}
 	} catch (error) {
 		fail(error);
 	} finally {
@@ -334,7 +443,7 @@ async function reloadSelectedFile() {
 }
 
 async function selectConfigFileAfterReset(key: string) {
-	fileSnapshot = fileContent;
+	fileUpdates = {};
 	selectedFile = null;
 	await selectConfigFile(key);
 }
@@ -377,7 +486,7 @@ onMount(loadWorkspace);
 			type="button"
 			class:active={section === "files"}
 			aria-current={section === "files" ? "page" : undefined}
-			on:click={() => switchSection("files")}>配置文件</button
+			on:click={() => switchSection("files")}>全部配置</button
 		>
 	</nav>
 
@@ -502,14 +611,14 @@ onMount(loadWorkspace);
 	{:else}
 		<section class="file-workspace" aria-labelledby="files-title">
 			<aside class="file-sidebar">
-				<div class="file-sidebar-heading"><h3 id="files-title">配置文件</h3><span>{filteredCatalog.length}/{catalog.length}</span></div>
+				<div class="file-sidebar-heading"><h3 id="files-title">全部配置</h3><span>{filteredCatalog.length}/{catalog.length}</span></div>
 				<label class="search-field" for="config-search"><span>筛选</span><input id="config-search" type="search" bind:value={fileFilter} placeholder="名称或路径" /></label>
 				<div class="file-list">
 					{#each catalogGroups as group}
 						<section aria-labelledby={`group-${group.key}`}>
 							<h4 id={`group-${group.key}`}>{group.label}</h4>
 							{#each group.files as file}
-								<button type="button" class:active={selectedFile?.key === file.key} on:click={() => selectConfigFile(file.key)}><strong>{file.name}</strong><span>{file.path.replace("src/config/", "")}</span></button>
+								<button type="button" class:active={selectedFile?.key === file.key} on:click={() => selectConfigFile(file.key)}><strong>{file.name}</strong><span>{file.description}</span></button>
 							{/each}
 						</section>
 					{/each}
@@ -518,11 +627,21 @@ onMount(loadWorkspace);
 			<section class="file-editor">
 				{#if selectedFile}
 					<div class="section-title-row file-title-row">
-						<div><h3>{selectedFile.name}</h3><span>{selectedFile.path}</span></div>
-						<div class="file-actions"><button class="quiet" type="button" on:click={reloadSelectedFile} disabled={busy || loadingFile}>重新加载</button><button class="primary" type="button" on:click={saveConfigFile} disabled={busy || loadingFile || !fileDirty}>保存文件</button></div>
+						<div><h3>{selectedFile.name}</h3><p>{selectedFile.description}</p></div>
+						<div class="file-actions"><button class="quiet" type="button" on:click={reloadSelectedFile} disabled={busy || loadingFile}>重新加载</button><button class="primary" type="button" on:click={saveConfigFile} disabled={busy || loadingFile || !fileDirty}>保存设置</button></div>
 					</div>
-					<div class="file-meta"><span>{selectedFile.language}</span><span>{fileContent.split("\n").length} 行</span><span>{fileContent.length} 字符</span>{#if fileDirty}<strong>未保存</strong>{/if}</div>
-					<textarea class="code-editor" bind:value={fileContent} spellcheck="false" aria-label={`${selectedFile.name}源码`}></textarea>
+					<div class="file-meta"><span>{selectedFile.document.editableFieldCount} 个可编辑字段</span>{#if fileDirty}<strong>{Object.keys(fileUpdates).length} 项未保存</strong>{/if}</div>
+					<div class="document-form" aria-busy={busy || loadingFile}>
+						{#each selectedFile.document.sections as configSection}
+							<section class="document-section" aria-labelledby={selectedFile.document.sections.length > 1 ? `config-section-${configSection.key}` : undefined} aria-label={selectedFile.document.sections.length === 1 ? configSection.label : undefined}>
+								{#if selectedFile.document.sections.length > 1}<h4 id={`config-section-${configSection.key}`}>{configSection.label}</h4>{/if}
+								<ConfigFieldEditor field={configSection.field} disabled={busy || loadingFile} onChange={updateSelectedField} />
+							</section>
+						{/each}
+						{#if selectedFile.document.editableFieldCount === 0}
+							<p class="empty-state">当前配置由代码生成。</p>
+						{/if}
+					</div>
 				{:else if loadingFile}
 					<p class="empty-state">正在加载配置文件...</p>
 				{:else}
@@ -611,13 +730,17 @@ onMount(loadWorkspace);
 	.file-list button:hover { background: #edf3f1; }
 	.file-list button.active { border-color: #9fc9be; background: #e5f3ef; color: #115b4e; }
 	.file-list button strong { font-size: 13px; }
-	.file-list button span { overflow: hidden; color: #788681; font-family: ui-monospace, monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+	.file-list button span { display: -webkit-box; overflow: hidden; color: #788681; font-size: 10px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 	.file-editor { min-width: 0; padding: 22px; }
 	.file-title-row { align-items: center; }
+	.file-title-row p { max-width: 620px; margin: 6px 0 0; color: #70807b; font-size: 12px; line-height: 1.5; }
 	.file-actions { display: flex; gap: 8px; }
 	.file-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; color: #72817d; font-size: 10px; }
 	.file-meta strong { padding: 3px 6px; border-radius: 4px; background: #fff1d9; color: #8a5b0d; }
-	.code-editor { display: block; width: 100%; min-height: 560px; resize: vertical; border: 1px solid #cbd7d4; border-radius: 7px; padding: 16px; background: #172421; color: #edf5f2; caret-color: #7de0c3; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; line-height: 1.65; tab-size: 2; }
+	.document-form { display: grid; gap: 24px; padding-top: 8px; }
+	.document-section { min-width: 0; padding-bottom: 24px; border-bottom: 1px solid #dfe6e4; }
+	.document-section:last-child { border-bottom: 0; }
+	.document-section > h4 { margin: 0 0 16px; color: #263a35; font-size: 14px; }
 	@media (max-width: 900px) {
 		.file-workspace { grid-template-columns: 220px minmax(0, 1fr); }
 		.music-toggles { grid-template-columns: 1fr; }
@@ -638,6 +761,5 @@ onMount(loadWorkspace);
 		.track-row > .icon-button { grid-column: 2; justify-self: end; }
 		.inline-editor { grid-template-columns: minmax(0, 1fr) 34px; }
 		.inline-editor label { grid-column: 1 / -1; }
-		.code-editor { min-height: 480px; }
 	}
 </style>
