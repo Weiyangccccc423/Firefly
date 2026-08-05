@@ -7,16 +7,16 @@ const SITE_LANG = "zh_CN";
 
 export const siteConfig: SiteConfig = {
 	// 站点标题
-	title: "未央的博客",
+	title: "",
 
 	// 站点副标题
-	subtitle: "AI Agent 与工程实践",
+	subtitle: "",
 
 	// 站点 URL
 	site_url: "https://wiyac5.xyz",
 
 	// 站点描述
-	description: "记录 AI Agent、上下文工程与软件系统实现。",
+	description: "",
 
 	// 站点关键词
 	keywords: [
