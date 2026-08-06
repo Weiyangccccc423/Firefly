@@ -781,6 +781,31 @@ function disableAnimation() {
   const bannerEnabled = !!document.getElementById("wallpaper-wrapper");
   const stickyNavbar = siteConfig.navbar.stickyNavbar ?? false;
 
+  type FireflyVisit = {
+    to: { url: string };
+    trigger: { el?: Element | null };
+    scroll: { reset: boolean };
+    meta: Record<string, unknown>;
+  };
+
+  const categoryBarScrollYKey = "fireflyCategoryBarScrollY";
+
+  function isCategoryBarVisit(visit: FireflyVisit) {
+    return Boolean(visit.trigger.el?.closest("#category-bar .category-pill"));
+  }
+
+  function getCategoryBarScrollY(visit: FireflyVisit) {
+    const scrollY = visit.meta[categoryBarScrollYKey];
+    return typeof scrollY === "number" ? scrollY : null;
+  }
+
+  function restoreCategoryBarScroll(visit: FireflyVisit) {
+    const scrollY = getCategoryBarScrollY(visit);
+    if (scrollY === null) return;
+
+    window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
+  }
+
   function setClickOutsideToClose(panel: string, ignores: string[]) {
       document.addEventListener("click", (event) => {
           let panelDom = document.getElementById(panel);
@@ -902,7 +927,13 @@ function disableAnimation() {
   const setup = () => {
     // 全屏壁纸模式：替换 swup 默认的回顶行为
     // 首页回顶部，其他页滚动到 #main-grid（与 ScrollDownIndicator 行为一致）
-    window.swup.hooks.replace("scroll:top", (visit: { to: { url: string } }, args: { options: ScrollIntoViewOptions }) => {
+    window.swup.hooks.replace("scroll:top", (visit: FireflyVisit, args: { options: ScrollIntoViewOptions }) => {
+      const preservedScrollY = getCategoryBarScrollY(visit);
+      if (preservedScrollY !== null) {
+        restoreCategoryBarScroll(visit);
+        return true;
+      }
+
       const wallpaperMode = document.documentElement.getAttribute("data-wallpaper-mode");
       if (wallpaperMode === "fullscreen" && !pathsEqual(visit.to.url, url("/"))) {
         const mainGrid = document.getElementById("main-grid");
@@ -1038,7 +1069,12 @@ function disableAnimation() {
       }
 
     });
-    window.swup.hooks.on("visit:start", (visit: { to: { url: string } }) => {
+    window.swup.hooks.on("visit:start", (visit: FireflyVisit) => {
+      if (isCategoryBarVisit(visit)) {
+        visit.meta[categoryBarScrollYKey] = window.scrollY;
+        visit.scroll.reset = false;
+      }
+
       // Start progress bar
       const progressBar = document.getElementById("progress-bar");
       if (progressBar) {
@@ -1204,14 +1240,18 @@ function disableAnimation() {
       // 全屏壁纸模式非首页跳过此处回顶，由 scroll:top 钩子统一处理滚动到 #main-grid
       const shouldUseSmoothScroll = window.innerWidth >= 768;
       const isFullscreenNonHome = document.documentElement.getAttribute("data-wallpaper-mode") === "fullscreen" && !isHomePage;
-      if (shouldUseSmoothScroll && !isFullscreenNonHome) {
+      if (
+        shouldUseSmoothScroll &&
+        !isFullscreenNonHome &&
+        getCategoryBarScrollY(visit) === null
+      ) {
         window.scrollTo({
           top: 0,
           behavior: "auto",
         });
       }
     });
-    window.swup.hooks.on("page:view", () => {
+    window.swup.hooks.on("page:view", (visit: FireflyVisit) => {
       // 恢复 #main-grid 的过渡动画（visit:start 中禁用了）
       const mainGrid = document.getElementById("main-grid");
       if (mainGrid) {
@@ -1310,6 +1350,12 @@ function disableAnimation() {
         document.documentElement.setAttribute("data-theme", expectedTheme);
       }
 
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          restoreCategoryBarScroll(visit);
+        });
+      });
+
       // 检查当前页面是否为文章页面，如果是则触发自定义事件用于初始化评论系统
       setTimeout(() => {
         if (document.getElementById("tcomment")) {
@@ -1328,7 +1374,7 @@ function disableAnimation() {
         }
       }, 300);
     });
-    window.swup.hooks.on("visit:end", (_visit: { to: { url: string } }) => {
+    window.swup.hooks.on("visit:end", (visit: FireflyVisit) => {
       // Finish progress bar
       const progressBar = document.getElementById("progress-bar");
       if (progressBar) {
@@ -1348,6 +1394,8 @@ function disableAnimation() {
         if (heightExtend) {
           heightExtend.classList.add("hidden");
         }
+
+        restoreCategoryBarScroll(visit);
 
         // Just make the transition looks better
         const toc = document.getElementById("toc-wrapper");
