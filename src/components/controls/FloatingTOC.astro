@@ -28,20 +28,24 @@ const hideSidebarOnPostPage =
 ---
 
 <!-- 悬浮TOC按钮 -->
-<div id="floating-toc-wrapper" class="floating-toc-wrapper" data-is-sidebar-toc-enabled={String(isSidebarTocEnabled)} data-sidebar-position={sidebarPosition} data-show-both-sidebars-on-post={String(sidebarLayoutConfig.showBothSidebarsOnPostPage ?? false)} data-hide-sidebar-on-post={String(hideSidebarOnPostPage)}>
+<div id="floating-toc-wrapper" class="floating-toc-wrapper" data-is-sidebar-toc-enabled={String(isSidebarTocEnabled)} data-sidebar-position={sidebarPosition} data-show-both-sidebars-on-post={String(sidebarLayoutConfig.showBothSidebarsOnPostPage ?? false)} data-floating-hide-sidebar-on-post={String(hideSidebarOnPostPage)}>
   <FloatingButton
     id="floating-toc-btn"
     icon="material-symbols:format-list-bulleted"
     toggleIcon="material-symbols:close"
-    ariaLabel="Table of Contents"
+    ariaLabel={i18n(I18nKey.tableOfContents)}
+    ariaControls="floating-toc-panel"
+    ariaExpanded={false}
     onclick="window.toggleFloatingTOC()"
     class="hide"
   />
 
   <!-- 悬浮TOC面板 - 移到 Wrapper 内部以便相对定位 -->
-  <div
+  <nav
     id="floating-toc-panel"
-    class="floating-toc-panel hide overflow-hidden rounded-2xl shadow-2xl backdrop-blur-lg border border-white/20 dark:border-white/10 md:w-80 w-[calc(100vw-2rem)] md:max-h-96 max-h-[calc(100vh-8rem)] py-3"
+    aria-label={i18n(I18nKey.tableOfContents)}
+    aria-hidden="true"
+    class="floating-toc-panel hide overflow-hidden rounded-lg shadow-2xl backdrop-blur-lg border border-white/20 dark:border-white/10 md:w-80 w-[calc(100vw-2rem)] md:max-h-96 max-h-[calc(100vh-8rem)] py-3"
     style="background-color: var(--card-bg-transparent);"
     >
     <div class="toc-scroll-container px-3">
@@ -85,7 +89,7 @@ const hideSidebarOnPostPage =
         {/* 加密文章：留空，客户端解密后由 TOCManager 填充 */}
         </div>
     </div>
-  </div>
+  </nav>
 </div>
 
 <style lang="stylus">
@@ -98,7 +102,7 @@ const hideSidebarOnPostPage =
 	position: absolute
 	bottom: calc(100% + 1rem)
 	right: 0
-	transition: all 0.3s ease
+	transition: transform 0.24s ease, opacity 0.2s ease, visibility 0.2s ease
 	transform: translateY(20px)
 	opacity: 0
 	pointer-events: none
@@ -118,6 +122,54 @@ const hideSidebarOnPostPage =
 		opacity: 0
 		pointer-events: none
 		visibility: hidden
+
+/* 桌面端使用不占文章宽度的右侧悬浮目录轨。 */
+@media (min-width: 1025px)
+	.floating-toc-wrapper
+		position: fixed
+		top: 50%
+		right: 0
+		transform: translateY(-50%)
+		width: 2.75rem
+		height: 3rem
+		z-index: 1002
+
+	:global(#floating-toc-btn)
+		position: relative
+		z-index: 1002
+		width: 2.75rem
+		height: 3rem
+		border-right: 0
+		border-radius: 0.75rem 0 0 0.75rem
+		box-shadow: var(--shadow-button)
+
+		:global(button)
+			border-radius: 0.75rem 0 0 0.75rem
+
+	.floating-toc-panel,
+	.floating-toc-panel.show,
+	.floating-toc-panel.hide
+		top: 50%
+		right: calc(100% - 0.25rem)
+		bottom: auto
+		width: 20rem
+		max-width: calc(100vw - 5rem)
+		max-height: unquote("min(70vh, 32rem)")
+		transform: translate(0.75rem, -50%) scale(0.98)
+		transform-origin: right center
+		opacity: 0
+		visibility: hidden
+		pointer-events: none
+
+	.floating-toc-wrapper:hover .floating-toc-panel,
+	.floating-toc-wrapper:focus-within .floating-toc-panel
+		transform: translate(0, -50%) scale(1)
+		opacity: 1
+		visibility: visible
+		pointer-events: auto
+
+	.floating-toc-panel .toc-scroll-container
+		max-height: unquote("calc(min(70vh, 32rem) - 1.5rem)")
 		
 .toc-scroll-container
 	/* 面板 max-height 24rem 减去面板自身 py-3 上下共 1.5rem */
@@ -144,6 +196,10 @@ const hideSidebarOnPostPage =
 :global(.dark) .floating-toc-panel
 	backdrop-filter: blur(20px)
 	-webkit-backdrop-filter: blur(20px)
+
+@media (prefers-reduced-motion: reduce)
+	.floating-toc-panel
+		transition: none
 </style>
 
 <script>
@@ -152,6 +208,7 @@ const hideSidebarOnPostPage =
   // 从 data 属性读取配置
   const wrapper = document.querySelector('.floating-toc-wrapper');
   const isSidebarTocEnabled = wrapper?.getAttribute('data-is-sidebar-toc-enabled') === 'true';
+	const desktopRailQuery = window.matchMedia('(min-width: 1025px)');
 
   if (typeof window.FloatingTOC === "undefined") {
     window.FloatingTOC = {
@@ -167,18 +224,27 @@ const hideSidebarOnPostPage =
     const panel = window.FloatingTOC.panel;
     const btn = window.FloatingTOC.btn;
     if (!panel) return;
+		if (desktopRailQuery.matches) return;
 
     const isHidden = panel.classList.contains("hide");
     if (isHidden) {
       panel.classList.remove("hide");
       panel.classList.add("show");
       btn?.classList.add("toggled");
+			updateTOCAccessibilityState(true);
     } else {
       panel.classList.remove("show");
       panel.classList.add("hide");
       btn?.classList.remove("toggled");
+			updateTOCAccessibilityState(false);
     }
   };
+
+	function updateTOCAccessibilityState(expanded: boolean) {
+		const button = window.FloatingTOC.btn?.querySelector('button');
+		button?.setAttribute('aria-expanded', String(expanded));
+		window.FloatingTOC.panel?.setAttribute('aria-hidden', String(!expanded));
+	}
 
   // 关闭 TOC 面板
   function closeTOC() {
@@ -189,7 +255,33 @@ const hideSidebarOnPostPage =
       panel.classList.remove("show");
     }
     btn?.classList.remove("toggled");
+		updateTOCAccessibilityState(false);
   }
+
+	function setupHoverRail() {
+		const tocWrapper = document.getElementById('floating-toc-wrapper');
+		if (!tocWrapper || tocWrapper.dataset.hoverRailBound === 'true') return;
+
+		tocWrapper.dataset.hoverRailBound = 'true';
+		const syncExpandedState = () => {
+			if (!desktopRailQuery.matches) return;
+			updateTOCAccessibilityState(tocWrapper.matches(':hover, :focus-within'));
+		};
+
+		tocWrapper.addEventListener('pointerenter', syncExpandedState);
+		tocWrapper.addEventListener('pointerleave', syncExpandedState);
+		tocWrapper.addEventListener('focusin', syncExpandedState);
+		tocWrapper.addEventListener('focusout', () => requestAnimationFrame(syncExpandedState));
+		tocWrapper.addEventListener('keydown', (event) => {
+			if (event.key !== 'Escape' || !desktopRailQuery.matches) return;
+			(event.target as HTMLElement).blur();
+			updateTOCAccessibilityState(false);
+		});
+		desktopRailQuery.addEventListener('change', () => {
+			closeTOC();
+			updateFloatingTOCVisibility();
+		});
+	}
 
   // 设置自动关闭功能
   function setupAutoClose() {
@@ -256,7 +348,7 @@ const hideSidebarOnPostPage =
     const wrapper = document.querySelector('.floating-toc-wrapper');
     const sidebarPosition = wrapper?.getAttribute('data-sidebar-position') || 'left';
     const showBothSidebarsOnPost = wrapper?.getAttribute('data-show-both-sidebars-on-post') === 'true';
-    const hideSidebarOnPost = wrapper?.getAttribute('data-hide-sidebar-on-post') === 'true';
+    const hideSidebarOnPost = wrapper?.getAttribute('data-floating-hide-sidebar-on-post') === 'true';
 
     // 侧边栏在文章页隐藏时，始终显示悬浮目录
     if (hideSidebarOnPost) {
@@ -299,6 +391,7 @@ const hideSidebarOnPostPage =
 
     // 更新显示状态
     updateFloatingTOCVisibility();
+		setupHoverRail();
 
     try {
       // 清理旧实例

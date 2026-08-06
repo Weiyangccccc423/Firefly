@@ -12,6 +12,9 @@ interface Props {
 	/** 可选的第二图标：提供后，按钮加上 .toggled 类时显示此图标、隐藏默认图标 */
 	toggleIcon?: string;
 	ariaLabel?: string;
+	ariaControls?: string;
+	ariaExpanded?: boolean;
+	title?: string;
 	onclick?: string;
 	class?: string;
 }
@@ -21,6 +24,9 @@ const {
 	icon,
 	toggleIcon,
 	ariaLabel,
+	ariaControls,
+	ariaExpanded,
+	title,
 	onclick,
 	class: className = "",
 } = Astro.props;
@@ -32,7 +38,11 @@ const {
   onclick={onclick}
 >
   <button
+    type="button"
     aria-label={ariaLabel}
+    aria-controls={ariaControls}
+    aria-expanded={ariaExpanded}
+    title={title ?? ariaLabel}
     class:list={["h-full w-full rounded-2xl", toggleIcon && "has-toggle-icon"]}
   >
     <Icon is:inline name={icon} class:list={["mx-auto", toggleIcon && "icon-default"]} />
@@ -93,6 +103,7 @@ const {
         /* 隐藏状态：缩小并收起布局 */
         transform: scale(0.5)
         opacity: 0
+        visibility: hidden
         pointer-events: none
         
         /* 强制收缩布局占用 */
