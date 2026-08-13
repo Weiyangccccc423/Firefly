@@ -1,6 +1,6 @@
+import type { CollectionEntry } from "astro:content";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { CollectionEntry } from "astro:content";
 
 export const filterExistingDynamics = (
 	entries: CollectionEntry<"dynamic">[],

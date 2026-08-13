@@ -19,12 +19,7 @@ export const siteConfig: SiteConfig = {
 	description: "",
 
 	// 站点关键词
-	keywords: [
-		"AI Agent",
-		"上下文工程",
-		"记忆系统",
-		"软件工程",
-	],
+	keywords: ["AI Agent", "上下文工程", "记忆系统", "软件工程"],
 
 	// 主题色
 	themeColor: {

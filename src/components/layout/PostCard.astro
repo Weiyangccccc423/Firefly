@@ -5,9 +5,9 @@ import CoverImage from "@/components/common/CoverImage.astro";
 import PostMetadata from "@/components/layout/PostMeta.astro";
 import PostStats from "@/components/layout/PostStats.astro";
 import { siteConfig } from "@/config";
+import type { PostEntry } from "@/utils/content-utils";
 import { getApiUrlList, processCoverImageSync } from "@/utils/image-utils";
 import { getFileDirFromPath, getTagUrl } from "@/utils/url-utils";
-import type { PostEntry } from "@/utils/content-utils";
 
 interface Props {
 	class?: string;
