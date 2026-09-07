@@ -35,6 +35,27 @@
   transition: opacity .35s ease;
 }
 
+.ff-live2d-placeholder {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  width: 76px;
+  height: 76px;
+  object-fit: cover;
+  border-radius: 12px;
+  transform: translate(-50%, 50%);
+  opacity: .9;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .2));
+  transition: opacity .25s ease, visibility 0s linear 0s;
+  pointer-events: none;
+}
+
+.ff-live2d-root.ff-ready .ff-live2d-placeholder {
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s, .25s;
+}
+
 .ff-live2d-root.ff-ready .ff-live2d-canvas {
   opacity: 1;
 }

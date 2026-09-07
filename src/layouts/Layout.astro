@@ -13,6 +13,7 @@ import {
 	analyticsConfig,
 	backgroundWallpaper,
 	expressiveCodeConfig,
+	fireflyLive2DConfig,
 	profileConfig,
 	siteConfig,
 } from "@/config";
@@ -554,6 +555,35 @@ const siteLang = lang.replace("_", "-");
 
     <!-- Font Setup (Astro Font API) -->
     <FontSetup />
+
+    {fireflyLive2DConfig.enable && (
+      <>
+        <link
+          rel="preload"
+          as="script"
+          media={`(min-width: ${fireflyLive2DConfig.minWidth ?? 0}px)`}
+          href={url("/live2d/firefly/firefly-loader.js")}
+        />
+        <link
+          rel="preload"
+          as="script"
+          media={`(min-width: ${fireflyLive2DConfig.minWidth ?? 0}px)`}
+          href={url("/live2d/firefly/load/live2dcubismcore.min.js")}
+        />
+        <link
+          rel="preload"
+          as="script"
+          media={`(min-width: ${fireflyLive2DConfig.minWidth ?? 0}px)`}
+          href={url("/live2d/firefly/load/pixi.min.js")}
+        />
+        <link
+          rel="preload"
+          as="script"
+          media={`(min-width: ${fireflyLive2DConfig.minWidth ?? 0}px)`}
+          href={url("/live2d/firefly/load/cubism4.min.js")}
+        />
+      </>
+    )}
   </head>
   <body
     class="min-h-screen"

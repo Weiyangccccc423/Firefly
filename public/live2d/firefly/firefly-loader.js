@@ -185,6 +185,12 @@
     canvas.className = "ff-live2d-canvas";
     canvas.setAttribute("aria-label", "流萤 Live2D 看板娘");
 
+    const placeholder = document.createElement("img");
+    placeholder.className = "ff-live2d-placeholder";
+    placeholder.src = asset(cfg.icon);
+    placeholder.alt = "";
+    placeholder.setAttribute("aria-hidden", "true");
+
     const dialog = document.createElement("div");
     dialog.className = "ff-live2d-dialog";
 
@@ -216,7 +222,7 @@
     closeButton.textContent = "❌";
 
     controls.append(homeButton, randomButton, profileButton, closeButton);
-    root.append(canvas, dialog, controls);
+    root.append(placeholder, canvas, dialog, controls);
     document.body.appendChild(root);
 
     const showButton = document.createElement("button");
@@ -249,10 +255,7 @@
   async function boot() {
     loadStyle(asset(cfg.css));
 
-    await loadScript(asset(cfg.core), () => !!window.Live2DCubismCore);
-    await loadScript(asset(cfg.pixi), () => !!window.PIXI);
-    await loadScript(asset(cfg.live2d), () => !!window.PIXI?.live2d?.Live2DModel);
-
+    // 先挂载占位图，让桌宠区域在运行时和模型下载期间立即可见。
     const {
       root,
       canvas,
@@ -264,6 +267,13 @@
       closeButton,
       showButton,
     } = createElements();
+
+    // Core 与 Pixi 互不依赖，先并行下载；Cubism adapter 需要 Pixi 完成后再执行。
+    await Promise.all([
+      loadScript(asset(cfg.core), () => !!window.Live2DCubismCore),
+      loadScript(asset(cfg.pixi), () => !!window.PIXI),
+    ]);
+    await loadScript(asset(cfg.live2d), () => !!window.PIXI?.live2d?.Live2DModel);
 
     let dialogTimer = 0;
     let dialogVisibleUntil = 0;
@@ -1420,7 +1430,8 @@
       autoInteract: true,
       autoUpdate: true,
       idleMotionGroup: "Idle",
-      motionPreload: "ALL",
+      // 交互动作和音频在首次触发时再加载，避免阻塞首屏模型。
+      motionPreload: "IDLE",
     });
 
     model.once("load", async () => {

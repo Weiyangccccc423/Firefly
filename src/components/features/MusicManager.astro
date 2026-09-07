@@ -7,7 +7,7 @@ import { url } from "@/utils/url-utils";
 const config = musicPlayerConfig;
 
 const localPlaylist =
-	config.mode === "local" && config.local?.playlist
+	config.local?.playlist
 		? config.local.playlist.map((song) => {
 				const isFullUrl = (path: string) => /^https?:\/\//.test(path);
 				return {
@@ -97,6 +97,8 @@ const managerConfigStr = JSON.stringify({
     // ── Audio element (persistent, attached to body) ────────
     var audio = document.createElement('audio');
     audio.crossOrigin = 'anonymous';
+    // 音频不是首屏内容，用户点击播放前不下载整首歌曲，避免与页面资源争抢带宽。
+    audio.preload = 'none';
     audio.style.display = 'none';
     document.body.appendChild(audio);
 
@@ -145,12 +147,19 @@ const managerConfigStr = JSON.stringify({
                     .replace(':r', Math.random());
                 if (m.auth) fetchUrl += '&auth=' + m.auth;
 
-                var res = await fetch(fetchUrl);
+                var controller = new AbortController();
+                var timeout = setTimeout(function () { controller.abort(); }, 4500);
+                var res;
+                try {
+                    res = await fetch(fetchUrl, { signal: controller.signal });
+                } finally {
+                    clearTimeout(timeout);
+                }
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 var data = await res.json();
 
                 if (Array.isArray(data) && data.length > 0) {
-                    state.playlist = data.map(function (item) {
+                    var playlist = data.map(function (item) {
                         return {
                             name: item.title || item.name || 'Unknown',
                             artist: item.author || item.artist || 'Unknown',
@@ -158,8 +167,11 @@ const managerConfigStr = JSON.stringify({
                             pic: item.pic || item.cover || '',
                             lrc: item.lrc
                         };
-                    });
-                    return;
+                    }).filter(function (item) { return typeof item.url === 'string' && item.url.length > 0; });
+                    if (playlist.length > 0) {
+                        state.playlist = playlist;
+                        return;
+                    }
                 }
             } catch (e) {
                 console.warn('Meting API failed for ' + baseApi, e);
@@ -355,10 +367,29 @@ const managerConfigStr = JSON.stringify({
         state.initializing = true;
 
         try {
-            if (config.mode === 'meting' && config.meting) {
-                await fetchMetingData();
-            } else if (config.mode === 'local') {
+            if (config.mode === 'local') {
                 state.playlist = config.localPlaylist || [];
+            } else if (config.mode === 'meting' && config.meting) {
+                // 本地曲目先显示并可播放，远程歌单在后台增强；第三方接口不可用时保留本地兜底。
+                var hasLocalFallback = (config.localPlaylist || []).length > 0;
+                if (hasLocalFallback) {
+                    state.playlist = config.localPlaylist;
+                    state.initialized = true;
+                    audio.volume = state.volume;
+                    emit('fm:init', {
+                        playlist: state.playlist,
+                        playMode: state.playMode,
+                        volume: state.volume,
+                        isMuted: state.isMuted
+                    });
+                    loadTrack(0, false);
+                }
+
+                try {
+                    await fetchMetingData();
+                } catch (remoteError) {
+                    if (!hasLocalFallback) throw remoteError;
+                }
             }
 
             if (state.playlist.length > 0) {
@@ -379,6 +410,7 @@ const managerConfigStr = JSON.stringify({
                     isMuted: state.isMuted
                 });
 
+                // 本地首屏已初始化时，远程歌单返回后同步替换当前列表。
                 loadTrack(startIndex, false);
             } else {
                 state.initialized = true;
