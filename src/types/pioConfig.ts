@@ -73,3 +73,32 @@ export type Live2DWidgetConfig = {
 		mobileBreakpoint?: number; // 移动端断点，默认 768
 	};
 };
+
+// Firefly Cubism 4 看板娘配置（Iskongkongyo/Firefly-live2d）
+export type FireflyLive2DConfig = {
+	enable: boolean;
+	assetBasePath?: string;
+	side?: "left" | "right";
+	width?: number;
+	height?: number;
+	scale?: number;
+	offsetX?: number;
+	offsetY?: number;
+	zIndex?: number;
+	minWidth?: number;
+	allowTouch?: boolean;
+	touchWidth?: number;
+	touchHeight?: number;
+	touchScale?: number;
+	touchOffsetX?: number;
+	touchOffsetY?: number;
+	welcome?: string;
+	homeUrl?: string;
+	profileUrl?: string;
+	profileHint?: string;
+	pageTitleMessage?: boolean;
+	linkHoverMessage?: boolean;
+	copyMessage?: string;
+	bottomMessage?: string;
+	idleMessages?: string[];
+};

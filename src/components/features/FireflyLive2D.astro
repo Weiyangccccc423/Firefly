@@ -1,0 +1,50 @@
+---
+import type { FireflyLive2DConfig } from "@/types/pioConfig";
+import { url } from "@/utils/url-utils";
+
+interface Props {
+	config: FireflyLive2DConfig;
+}
+
+const { config } = Astro.props;
+const assetBasePath = config.assetBasePath ?? "/live2d/firefly/";
+const loaderUrl = url(`${assetBasePath}firefly-loader.js`);
+
+const loaderConfig = {
+	baseUrl: url(assetBasePath),
+	side: config.side,
+	width: config.width,
+	height: config.height,
+	scale: config.scale,
+	offsetX: config.offsetX,
+	offsetY: config.offsetY,
+	zIndex: config.zIndex,
+	minWidth: config.minWidth,
+	allowTouch: config.allowTouch,
+	touchWidth: config.touchWidth,
+	touchHeight: config.touchHeight,
+	touchScale: config.touchScale,
+	touchOffsetX: config.touchOffsetX,
+	touchOffsetY: config.touchOffsetY,
+	welcome: config.welcome,
+	homeUrl: config.homeUrl ? url(config.homeUrl) : undefined,
+	profileUrl: config.profileUrl,
+	profileHint: config.profileHint,
+	pageTitleMessage: config.pageTitleMessage,
+	linkHoverMessage: config.linkHoverMessage,
+	copyMessage: config.copyMessage,
+	bottomMessage: config.bottomMessage,
+	idleMessages: config.idleMessages,
+};
+---
+
+<script is:inline define:vars={{ loaderConfig, loaderUrl }}>
+	if (!window.FireflyLive2D && !window.__fireflyLive2DLoading) {
+		window.FireflyLive2DConfig = loaderConfig;
+
+		const script = document.createElement("script");
+		script.src = loaderUrl;
+		script.async = true;
+		document.head.appendChild(script);
+	}
+</script>

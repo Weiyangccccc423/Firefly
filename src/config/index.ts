@@ -11,6 +11,7 @@ export type {
 	CoverImageConfig,
 	DynamicConfig,
 	ExpressiveCodeConfig,
+	FireflyLive2DConfig,
 	FooterConfig,
 	GalleryAlbum,
 	GalleryConfig,
@@ -55,7 +56,11 @@ export { licenseConfig } from "./licenseConfig"; // 许可证配置
 export { mermaidConfig } from "./mermaidConfig"; // Mermaid 图表配置
 export { musicPlayerConfig } from "./musicConfig"; // 音乐播放器配置
 export { navBarConfig, navBarSearchConfig } from "./navBarConfig"; // 导航栏配置与搜索配置
-export { live2dWidgetConfig, spineModelConfig } from "./pioConfig"; // 看板娘配置
+export {
+	fireflyLive2DConfig,
+	live2dWidgetConfig,
+	spineModelConfig,
+} from "./pioConfig"; // 看板娘配置
 export { plantumlConfig } from "./plantumlConfig"; // PlantUML 图表配置
 export { profileConfig } from "./profileConfig"; // 用户资料配置
 // 布局配置

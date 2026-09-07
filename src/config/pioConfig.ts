@@ -1,4 +1,8 @@
-import type { Live2DWidgetConfig, SpineModelConfig } from "../types/pioConfig";
+import type {
+	FireflyLive2DConfig,
+	Live2DWidgetConfig,
+	SpineModelConfig,
+} from "../types/pioConfig";
 
 // Spine 看板娘配置
 export const spineModelConfig: SpineModelConfig = {
@@ -182,4 +186,28 @@ export const live2dWidgetConfig: Live2DWidgetConfig = {
 		// 移动端断点
 		mobileBreakpoint: 768,
 	},
+};
+
+// Firefly Cubism 4 看板娘配置。
+// 资源来自 https://github.com/Iskongkongyo/Firefly-live2d ，固定为同源静态文件，
+// 避免访客加载时依赖 GitHub 或第三方 CDN。
+export const fireflyLive2DConfig: FireflyLive2DConfig = {
+	enable: true,
+	assetBasePath: "/live2d/firefly/",
+	side: "left",
+	width: 360,
+	height: 540,
+	scale: 0.84,
+	offsetX: -20,
+	offsetY: 10,
+	zIndex: 52,
+	minWidth: 1024,
+	allowTouch: false,
+	welcome: "开拓者，我回来啦~",
+	homeUrl: "/",
+	profileUrl:
+		"https://bbs.mihoyo.com/sr/wiki/content/2674/detail?bbs_presentation_style=no_header",
+	profileHint: "我叫流萤，想要更多了解我吗？",
+	pageTitleMessage: true,
+	linkHoverMessage: true,
 };

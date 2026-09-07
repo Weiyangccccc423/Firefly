@@ -1,6 +1,8 @@
 ---
 import Live2DWidget from "@components/features/Live2DWidget.astro";
 
+import FireflyLive2D from "@components/features/FireflyLive2D.astro";
+
 import SpineModel from "@components/features/SpineModel.astro";
 import Footer from "@components/layout/Footer.astro";
 import Navbar from "@components/layout/Navbar.astro";
@@ -15,7 +17,9 @@ import TypewriterText from "@/components/features/TypewriterText.astro";
 import CategoryBar from "@/components/layout/CategoryBar.astro";
 import {
 	backgroundWallpaper,
+	fireflyLive2DConfig,
 	live2dWidgetConfig,
+	spineModelConfig,
 	sidebarLayoutConfig,
 	siteConfig,
 } from "@/config";
@@ -94,6 +98,12 @@ const wavesEnabledOnMobile =
 // 是否需要渲染水波纹元素（任一设备启用 或 允许用户切换）
 const shouldRenderWaves =
 	wavesEnabledOnDesktop || wavesEnabledOnMobile || wavesSwitchable;
+
+// 看板娘共用固定视口区域，按新模型、旧 Live2D、Spine 的优先级只渲染一个。
+const showFireflyLive2D = fireflyLive2DConfig.enable;
+const showLegacyLive2D = !showFireflyLive2D && live2dWidgetConfig.enable;
+const showSpineModel =
+	!showFireflyLive2D && !showLegacyLive2D && spineModelConfig.enable;
 
 // 渐变过渡配置
 const gradientConfig = backgroundWallpaper.common?.gradient?.enable;
@@ -921,8 +931,9 @@ const hasMultipleImages =
             </div>
         </div>
 
-        <SpineModel></SpineModel>
-        {live2dWidgetConfig.enable && <Live2DWidget config={live2dWidgetConfig} />}
+		{showSpineModel && <SpineModel />}
+		{showLegacyLive2D && <Live2DWidget config={live2dWidgetConfig} />}
+		{showFireflyLive2D && <FireflyLive2D config={fireflyLive2DConfig} />}
     </div>
 </div>
 

@@ -12,6 +12,7 @@ const OUTPUT_FILE = "src/constants/lqips.json";
 const IGNORE_DIRS = [
 	"public/favicon/**",
 	"public/pio/**",
+	"public/live2d/**",
 	"public/assets/images/effects/**",
 	"public/assets/music/**",
 	"public/gallery/**/source/**",
