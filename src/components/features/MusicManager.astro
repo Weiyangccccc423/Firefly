@@ -6,27 +6,26 @@ import { url } from "@/utils/url-utils";
 
 const config = musicPlayerConfig;
 
-const localPlaylist =
-	config.local?.playlist
-		? config.local.playlist.map((song) => {
-				const isFullUrl = (path: string) => /^https?:\/\//.test(path);
-				return {
-					name: song.name,
-					artist: song.artist,
-					url: isFullUrl(song.url) ? song.url : url(song.url),
-					pic: song.cover
-						? isFullUrl(song.cover)
-							? song.cover
-							: url(song.cover)
-						: undefined,
-					lrc: song.lrc
-						? isFullUrl(song.lrc)
-							? song.lrc
-							: url(song.lrc)
-						: undefined,
-				};
-			})
-		: [];
+const localPlaylist = config.local?.playlist
+	? config.local.playlist.map((song) => {
+			const isFullUrl = (path: string) => /^https?:\/\//.test(path);
+			return {
+				name: song.name,
+				artist: song.artist,
+				url: isFullUrl(song.url) ? song.url : url(song.url),
+				pic: song.cover
+					? isFullUrl(song.cover)
+						? song.cover
+						: url(song.cover)
+					: undefined,
+				lrc: song.lrc
+					? isFullUrl(song.lrc)
+						? song.lrc
+						: url(song.lrc)
+					: undefined,
+			};
+		})
+	: [];
 
 const managerConfigStr = JSON.stringify({
 	mode: config.mode,
@@ -101,6 +100,10 @@ const managerConfigStr = JSON.stringify({
     audio.preload = 'none';
     audio.style.display = 'none';
     document.body.appendChild(audio);
+
+    var localFallbackTrack = (config.localPlaylist || [])[0] || null;
+    var fallbackSourceUrl = null;
+    var playRequested = false;
 
     // ── State ────────────────────────────────────────────────
     var loadVersion = 0; // incremented on each loadTrack to discard stale play() results
@@ -212,12 +215,33 @@ const managerConfigStr = JSON.stringify({
         }
     }
 
+    function fallbackToLocal() {
+        var currentTrack = state.playlist[state.currentIndex];
+        if (!playRequested || !localFallbackTrack || !currentTrack
+            || currentTrack.url === localFallbackTrack.url
+            || fallbackSourceUrl === currentTrack.url) return false;
+
+        fallbackSourceUrl = currentTrack.url;
+        var fallbackIndex = state.playlist.findIndex(function (track) {
+            return track.url === localFallbackTrack.url;
+        });
+        if (fallbackIndex < 0) {
+            state.playlist = [localFallbackTrack].concat(state.playlist);
+            fallbackIndex = 0;
+        }
+        state.error = null;
+        loadTrack(fallbackIndex, true);
+        emit('fm:fallback', { track: localFallbackTrack });
+        return true;
+    }
+
     // ── Track loading ────────────────────────────────────────
     function loadTrack(index, autoPlay) {
         if (index < 0 || index >= state.playlist.length) return;
         state.currentIndex = index;
         var track = state.playlist[index];
         var ver = ++loadVersion;
+		playRequested = !!autoPlay;
 
         audio.src = track.url;
 
@@ -233,6 +257,9 @@ const managerConfigStr = JSON.stringify({
             }).catch(function (e) {
                 if (ver !== loadVersion) return; // stale, discard
                 if (e.name === 'AbortError') return; // interrupted by new load
+				if (fallbackToLocal()) return;
+				state.error = 'Audio playback error';
+				emit('fm:error', { message: state.error });
                 console.warn('Autoplay blocked:', e);
             });
         } else {
@@ -244,12 +271,21 @@ const managerConfigStr = JSON.stringify({
     // ── Playback controls ────────────────────────────────────
     function togglePlay() {
         if (audio.paused) {
+            playRequested = true;
             audio.play().then(function () {
                 state.isPlaying = true;
                 emit('fm:play-state', { isPlaying: true });
-            });
+            }).catch(function (e) {
+				if (fallbackToLocal()) return;
+				if (fallbackSourceUrl && localFallbackTrack
+					&& state.playlist[state.currentIndex]?.url === localFallbackTrack.url) return;
+				state.error = 'Audio playback error';
+				emit('fm:error', { message: state.error });
+				console.warn('Audio playback failed:', e);
+			});
         } else {
             audio.pause();
+            playRequested = false;
             state.isPlaying = false;
             emit('fm:play-state', { isPlaying: false });
         }
@@ -258,7 +294,15 @@ const managerConfigStr = JSON.stringify({
     function playNext(auto) {
         if (state.playMode === 1 && auto) {
             audio.currentTime = 0;
-            audio.play();
+            playRequested = true;
+            audio.play().catch(function (e) {
+                if (fallbackToLocal()) return;
+				if (fallbackSourceUrl && localFallbackTrack
+					&& state.playlist[state.currentIndex]?.url === localFallbackTrack.url) return;
+                state.error = 'Audio playback error';
+                emit('fm:error', { message: state.error });
+                console.warn('Audio playback failed:', e);
+            });
             return;
         }
         var nextIndex;
@@ -357,6 +401,7 @@ const managerConfigStr = JSON.stringify({
     });
 
     audio.addEventListener('error', function () {
+        if (playRequested && fallbackToLocal()) return;
         state.error = 'Audio playback error';
         emit('fm:error', { message: state.error });
     });
