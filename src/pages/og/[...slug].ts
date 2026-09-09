@@ -40,6 +40,19 @@ export const getStaticPaths: GetStaticPaths = async () => {
 
 let fontCache: { regular: Buffer | null; bold: Buffer | null } | null = null;
 
+function loadBundledFallbackFont(): {
+	regular: Buffer | null;
+	bold: Buffer | null;
+} {
+	const fallbackPath = "./public/assets/fonts/NotoSans-Regular.ttf";
+	if (!fs.existsSync(fallbackPath)) {
+		return { regular: null, bold: null };
+	}
+
+	const fallback = fs.readFileSync(fallbackPath);
+	return { regular: fallback, bold: fallback };
+}
+
 async function fetchNotoSansSCFonts() {
 	if (fontCache) return fontCache;
 	try {
@@ -65,10 +78,10 @@ async function fetchNotoSansSCFonts() {
 
 		if (!regularUrl || !boldUrl) {
 			console.warn(
-				"Could not find font urls in Google Fonts CSS; falling back to no fonts.",
+				"Could not find font urls in Google Fonts CSS; using bundled fallback font.",
 			);
-			fontCache = { regular: null, bold: null };
-			return { regular: null, bold: null };
+			fontCache = loadBundledFallbackFont();
+			return fontCache;
 		}
 
 		const [rResp, bResp] = await Promise.all([
@@ -77,10 +90,10 @@ async function fetchNotoSansSCFonts() {
 		]);
 		if (!rResp.ok || !bResp.ok) {
 			console.warn(
-				"Failed to download font files from Google; falling back to no fonts.",
+				"Failed to download font files from Google; using bundled fallback font.",
 			);
-			fontCache = { regular: null, bold: null };
-			return { regular: null, bold: null };
+			fontCache = loadBundledFallbackFont();
+			return fontCache;
 		}
 
 		const rBuf = Buffer.from(await rResp.arrayBuffer());
@@ -89,8 +102,8 @@ async function fetchNotoSansSCFonts() {
 		return fontCache;
 	} catch (err) {
 		console.warn("Error fetching fonts:", err);
-		fontCache = { regular: null, bold: null };
-		return { regular: null, bold: null };
+		fontCache = loadBundledFallbackFont();
+		return fontCache;
 	}
 }
 
