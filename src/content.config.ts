@@ -2,7 +2,32 @@ import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
 
-const postSchema = z.object({
+type DefaultString = z.ZodDefault<z.ZodOptional<z.ZodString>>;
+type DefaultBoolean = z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+
+const postSchema: z.ZodObject<{
+	title: z.ZodString;
+	published: z.ZodDate;
+	updated: z.ZodOptional<z.ZodDate>;
+	draft: DefaultBoolean;
+	description: DefaultString;
+	image: DefaultString;
+	tags: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString>>>;
+	category: z.ZodDefault<z.ZodNullable<z.ZodOptional<z.ZodString>>>;
+	lang: DefaultString;
+	pinned: DefaultBoolean;
+	author: DefaultString;
+	sourceLink: DefaultString;
+	licenseName: DefaultString;
+	licenseUrl: DefaultString;
+	comment: DefaultBoolean;
+	password: DefaultString;
+	passwordHint: DefaultString;
+	prevTitle: z.ZodDefault<z.ZodString>;
+	prevSlug: z.ZodDefault<z.ZodString>;
+	nextTitle: z.ZodDefault<z.ZodString>;
+	nextSlug: z.ZodDefault<z.ZodString>;
+}> = z.object({
 	title: z.string(),
 	published: z.date(),
 	updated: z.date().optional(),
@@ -27,24 +52,40 @@ const postSchema = z.object({
 	nextSlug: z.string().default(""),
 });
 
-const postsCollection = defineCollection({
+const postsCollection: ReturnType<
+	typeof defineCollection<typeof postSchema, ReturnType<typeof glob>>
+> = defineCollection({
 	loader: glob({ pattern: "**/*.{md,mdx}", base: "./src/content/posts" }),
 	schema: postSchema,
 });
 
-const specCollection = defineCollection({
+const specCollection: ReturnType<
+	typeof defineCollection<
+		z.ZodObject<Record<string, never>>,
+		ReturnType<typeof glob>
+	>
+> = defineCollection({
 	loader: glob({ pattern: "**/*.{md,mdx}", base: "./src/content/spec" }),
 	schema: z.object({}),
 });
 
-const dynamicCollection = defineCollection({
+const dynamicCollection: ReturnType<
+	typeof defineCollection<
+		z.ZodObject<{ published: z.ZodDate }>,
+		ReturnType<typeof glob>
+	>
+> = defineCollection({
 	loader: glob({ pattern: "**/*.md", base: "./src/content/dynamic" }),
 	schema: z.object({
 		published: z.date(),
 	}),
 });
 
-export const collections = {
+export const collections: {
+	dynamic: typeof dynamicCollection;
+	posts: typeof postsCollection;
+	spec: typeof specCollection;
+} = {
 	dynamic: dynamicCollection,
 	posts: postsCollection,
 	spec: specCollection,

@@ -9,7 +9,7 @@ import {
 
 const markdownImagePattern = /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']*)["'])?\)/g;
 
-export async function GET() {
+export async function GET(): Promise<Response> {
 	const processor = await createMarkdownProcessor();
 	const dynamics = sortDynamics(
 		filterExistingDynamics(await getCollection("dynamic")),

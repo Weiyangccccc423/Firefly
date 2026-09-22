@@ -21,7 +21,7 @@ function stripInvalidXmlChars(str: string): string {
 	);
 }
 
-export async function GET(context: APIContext) {
+export async function GET(context: APIContext): Promise<Response> {
 	if (!siteConfig.pages.rss) return new Response(null, { status: 404 });
 	const blog = await getSortedPosts();
 	const renderers = await loadRenderers([getMDXRenderer()]);

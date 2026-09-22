@@ -184,7 +184,9 @@ async function imageToPngBase64(
 	}
 }
 
-export async function GET({ props }: APIContext<{ post: PostEntry }>) {
+export async function GET({
+	props,
+}: APIContext<{ post: PostEntry }>): Promise<Response> {
 	const { post } = props;
 
 	// Try to fetch fonts from Google Fonts (woff2) at runtime.
